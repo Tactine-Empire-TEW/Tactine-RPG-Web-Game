@@ -1,0 +1,532 @@
+/* ── Reset ─────────────────────────────────────────────────────────── */
+*, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+
+body {
+  background: #0a0500;
+  overflow: hidden;
+  font-family: 'Segoe UI', system-ui, sans-serif;
+  user-select: none;
+}
+
+/* ── Game canvas ────────────────────────────────────────────────────── */
+#world {
+  position: fixed;
+  inset: 0;
+  display: block;
+  cursor: grab;
+}
+
+/* ── Cinematic vignette ─────────────────────────────────────────────── */
+#vignette {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  background: radial-gradient(ellipse at center,
+    transparent 55%,
+    rgba(0,0,0,.28) 78%,
+    rgba(0,0,0,.60) 100%
+  );
+  z-index: 10;
+}
+
+/* ── Top HUD ────────────────────────────────────────────────────────── */
+#hud-top {
+  position: fixed;
+  top: 0; left: 0; right: 0;
+  height: 58px;
+  display: flex;
+  align-items: center;
+  padding: 0 18px;
+  gap: 12px;
+  background: linear-gradient(to bottom, rgba(4,2,0,.92) 0%, transparent 100%);
+  pointer-events: none;
+  z-index: 20;
+}
+#hud-top > * { pointer-events: auto; }
+
+.hud-logo {
+  height: 46px;
+  width: auto;
+  image-rendering: pixelated;
+  flex-shrink: 0;
+  filter: drop-shadow(0 0 6px rgba(240,180,0,.7)) drop-shadow(0 0 14px rgba(200,120,0,.45));
+}
+
+.empire-name {
+  font-size: 17px;
+  font-weight: 800;
+  color: #f0c840;
+  text-shadow: 0 0 16px rgba(240,180,0,.65), 1px 1px 0 #000;
+  letter-spacing: .5px;
+  line-height: 1.2;
+}
+.empire-abbr {
+  font-size: 11px;
+  font-weight: 700;
+  color: #c8980a;
+  background: rgba(240,180,0,.12);
+  border: 1px solid rgba(240,180,0,.25);
+  border-radius: 3px;
+  padding: 1px 5px;
+  margin-left: 5px;
+  letter-spacing: 1px;
+  vertical-align: middle;
+}
+.empire-name small {
+  display: block;
+  font-size: 10px;
+  font-weight: 400;
+  color: #8a6820;
+  margin-top: 1px;
+  letter-spacing: .3px;
+}
+
+.hud-space { flex: 1; }
+
+select.biome-sel {
+  background: rgba(15,8,0,.85);
+  color: #c09040;
+  border: 1px solid #5a3610;
+  padding: 5px 10px;
+  border-radius: 6px;
+  font-size: 12px;
+  cursor: pointer;
+  outline: none;
+}
+select.biome-sel:focus { border-color: #c08030; }
+
+/* ── HUD buttons ────────────────────────────────────────────────────── */
+.hud-btn {
+  background: linear-gradient(135deg, #2e1406, #1c0a02);
+  color: #e8b840;
+  border: 1px solid #6a3e10;
+  border-bottom-color: #3a1e06;
+  padding: 7px 18px;
+  border-radius: 6px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: .4px;
+  text-shadow: 0 1px 0 #000;
+  box-shadow: 0 2px 6px rgba(0,0,0,.5), inset 0 1px 0 rgba(255,200,0,.1);
+  transition: all .12s;
+}
+.hud-btn:hover {
+  border-color: #c08030;
+  color: #ffe060;
+  box-shadow: 0 0 12px rgba(200,120,0,.35), 0 2px 6px rgba(0,0,0,.5);
+}
+.hud-btn.done {
+  background: linear-gradient(135deg, #0e3a08, #071e04);
+  border-color: #3a8020;
+  color: #70d050;
+}
+.hud-btn.done:hover { box-shadow: 0 0 12px rgba(60,160,0,.35); }
+
+/* ── Edit panel ─────────────────────────────────────────────────────── */
+#edit-panel {
+  position: fixed;
+  bottom: 0; left: 0; right: 0;
+  z-index: 20;
+  display: none;
+  flex-direction: column;
+  background: linear-gradient(to top, rgba(5,2,0,.98), rgba(10,5,0,.92));
+  border-top: 1px solid #6a4010;
+  box-shadow: 0 -8px 32px rgba(0,0,0,.80);
+}
+#edit-panel.open { display: flex; }
+
+/* ── On-map hover tooltip ───────────────────────────────────────────── */
+#map-tooltip {
+  position: fixed;
+  display: none;
+  pointer-events: none;
+  z-index: 30;
+  background: rgba(6,3,0,.92);
+  border: 1px solid #7a4e1a;
+  border-radius: 5px;
+  padding: 4px 10px;
+  font-size: 12px;
+  font-weight: 700;
+  color: #f0c840;
+  text-shadow: 0 1px 0 #000;
+  white-space: nowrap;
+  box-shadow: 0 3px 12px rgba(0,0,0,.65);
+  letter-spacing: .3px;
+}
+
+/* ── Bottom action buttons (Inventory / Store) ──────────────────────── */
+#bottom-actions {
+  position: fixed;
+  bottom: 16px;
+  left: 16px;
+  display: flex;
+  gap: 10px;
+  z-index: 18;
+  pointer-events: auto;
+}
+
+.action-btn {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  background: linear-gradient(160deg, #2a1206 0%, #160902 100%);
+  color: #e8b840;
+  border: 1px solid #7a4e1a;
+  border-bottom: 2px solid #3a1a06;
+  padding: 10px 18px 8px;
+  border-radius: 10px;
+  font-family: inherit;
+  cursor: pointer;
+  text-shadow: 0 1px 0 #000;
+  box-shadow: 0 4px 14px rgba(0,0,0,.65), inset 0 1px 0 rgba(255,200,0,.08);
+  transition: all .13s ease;
+  user-select: none;
+  min-width: 80px;
+}
+.action-btn:hover {
+  border-color: #c08030;
+  border-bottom-color: #8a5010;
+  color: #ffe060;
+  box-shadow: 0 0 18px rgba(220,140,0,.30), 0 4px 14px rgba(0,0,0,.65);
+  transform: translateY(-1px);
+}
+.action-btn:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 8px rgba(0,0,0,.65);
+}
+.action-icon {
+  font-size: 22px;
+  line-height: 1;
+}
+.action-label {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .5px;
+  text-transform: uppercase;
+}
+
+/* ── Edit help tips bar ─────────────────────────────────────────────── */
+#edit-help {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px 0;
+  padding: 6px 14px 5px;
+  background: rgba(30,12,0,.6);
+  border-bottom: 1px solid rgba(120,70,0,.25);
+  flex-shrink: 0;
+}
+.help-tip {
+  font-size: 10.5px;
+  color: #a07840;
+  white-space: nowrap;
+  padding: 0 6px;
+}
+.help-tip b { color: #d0a050; font-weight: 700; }
+.help-sep {
+  color: rgba(150,90,20,.4);
+  font-size: 12px;
+  padding: 0 2px;
+}
+
+/* ── Tile grid (wraps into multiple rows) ───────────────────────────── */
+#tile-strip {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  gap: 5px;
+  padding: 10px 14px 4px;
+  height: 200px;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: thin;
+  scrollbar-color: #5a3010 transparent;
+}
+#tile-strip::-webkit-scrollbar       { width: 5px; }
+#tile-strip::-webkit-scrollbar-thumb { background: #5a3010; border-radius: 3px; }
+
+/* Section headers inside the strip */
+.strip-section-lbl {
+  width: 100%;
+  font-size: 9px;
+  font-weight: 800;
+  color: #8a5820;
+  text-transform: uppercase;
+  letter-spacing: 2px;
+  padding: 6px 2px 2px;
+  border-bottom: 1px solid rgba(140,80,0,.25);
+  margin-bottom: 3px;
+  flex-shrink: 0;
+}
+.strip-section-lbl:first-child {
+  padding-top: 0;
+  border-bottom: 1px solid rgba(140,80,0,.25);
+}
+
+/* Individual tile cards */
+.strip-card {
+  flex-shrink: 0;
+  width: 58px;
+  height: 58px;
+  border: 2px solid #3a1e08;
+  border-radius: 5px;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color .1s, transform .1s, box-shadow .1s;
+  position: relative;
+}
+.strip-card:hover {
+  border-color: #c08030;
+  transform: scale(1.08);
+  z-index: 1;
+  box-shadow: 0 2px 10px rgba(0,0,0,.6);
+}
+.strip-card.sel {
+  border-color: #f0c030;
+  box-shadow: 0 0 12px rgba(240,180,0,.55);
+}
+.strip-card canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+/* ── Strip info bar (shows hovered / selected tile name) ────────────── */
+#strip-info {
+  height: 22px;
+  display: flex;
+  align-items: center;
+  padding: 0 14px;
+  font-size: 11px;
+  color: #b08040;
+  font-style: italic;
+  letter-spacing: .3px;
+  border-top: 1px solid rgba(100,60,0,.18);
+  min-height: 22px;
+  flex-shrink: 0;
+}
+
+/* ── Category + done bar ────────────────────────────────────────────── */
+#cat-bar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 6px 14px 10px;
+  border-top: 1px solid rgba(100,60,0,.25);
+}
+.cat {
+  background: rgba(22,10,2,.8);
+  color: #7a5028;
+  border: 1px solid #3a1e08;
+  padding: 5px 18px;
+  border-radius: 5px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: .3px;
+  transition: all .1s;
+}
+.cat:hover  { border-color: #8a5020; color: #c09040; }
+.cat.active { background: rgba(70,35,4,.9); border-color: #c08030; color: #f0c040; }
+
+.cat-space { flex: 1; }
+
+/* ── Selected tile preview (top-right in edit mode) ─────────────────── */
+#sel-preview {
+  position: fixed;
+  top: 62px;
+  right: 16px;
+  background: rgba(8,4,0,.94);
+  border: 1px solid #6a4010;
+  border-radius: 8px;
+  padding: 10px;
+  display: none;
+  flex-direction: column;
+  align-items: center;
+  gap: 5px;
+  z-index: 21;
+  box-shadow: 0 4px 20px rgba(0,0,0,.65);
+  min-width: 80px;
+}
+#sel-preview canvas {
+  image-rendering: pixelated;
+  border: 1px solid #2e1608;
+  border-radius: 3px;
+}
+#prev-name {
+  font-size: 10px;
+  color: #9a6830;
+  text-align: center;
+  max-width: 90px;
+  word-break: break-word;
+  line-height: 1.3;
+}
+
+/* ── Upgrade burst overlay (CSS-animated div spawned per tile) ──────── */
+@keyframes upgrade-burst {
+  0%   { opacity: 1;   transform: scale(0.6);  border-width: 5px; }
+  40%  { opacity: 0.9; transform: scale(1.15); border-width: 4px; }
+  100% { opacity: 0;   transform: scale(2.8);  border-width: 1px; }
+}
+@keyframes upgrade-flash {
+  0%   { opacity: 0.85; }
+  60%  { opacity: 0.5;  }
+  100% { opacity: 0;    }
+}
+.upgrade-burst {
+  position: fixed;
+  width: 48px;
+  height: 48px;
+  border: 5px solid #f5c020;
+  border-radius: 50%;
+  background: rgba(255, 220, 40, 0.35);
+  pointer-events: none;
+  z-index: 600;
+  animation: upgrade-burst 0.55s cubic-bezier(.2,.8,.4,1) forwards;
+}
+.upgrade-burst::after {
+  content: '';
+  position: absolute;
+  inset: -6px;
+  border-radius: 50%;
+  background: radial-gradient(circle, rgba(255,230,80,.6) 0%, transparent 70%);
+  animation: upgrade-flash 0.55s ease-out forwards;
+}
+
+/* ── Biome loading overlay ──────────────────────────────────────────── */
+#loading-overlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(5, 2, 0, 0.82);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 400;
+  pointer-events: all;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.18s ease, visibility 0.18s;
+}
+#loading-overlay.visible {
+  opacity: 1;
+  visibility: visible;
+}
+.loading-inner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 18px;
+}
+.loading-spinner {
+  width: 42px;
+  height: 42px;
+  border: 3px solid rgba(240, 180, 0, 0.18);
+  border-top-color: #f0c840;
+  border-radius: 50%;
+  animation: lspin 0.75s linear infinite;
+}
+@keyframes lspin {
+  to { transform: rotate(360deg); }
+}
+.loading-text {
+  color: #d0a030;
+  font-size: 13px;
+  font-weight: 700;
+  letter-spacing: 1.5px;
+  text-transform: uppercase;
+  text-shadow: 0 1px 3px #000;
+}
+
+/* ── Entity info panel (right side) ────────────────────────────────── */
+.entity-panel {
+  position: fixed;
+  right: 16px;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  width: 170px;
+  padding: 20px 14px 16px;
+  background: rgba(6, 3, 0, 0.95);
+  border: 1px solid #8a5a20;
+  border-radius: 12px;
+  box-shadow: 0 8px 32px rgba(0,0,0,.85);
+  z-index: 200;
+  pointer-events: none;
+  opacity: 0;
+  visibility: hidden;
+  transition: opacity 0.15s ease, visibility 0.15s;
+}
+.entity-panel.visible {
+  opacity: 1;
+  visibility: visible;
+}
+
+.ep-preview-wrap {
+  border: 2px solid #6a3e10;
+  border-radius: 8px;
+  overflow: hidden;
+  background: #080400;
+}
+.ep-preview-wrap canvas {
+  display: block;
+  image-rendering: pixelated;
+}
+
+.ep-name {
+  font-size: 13px;
+  font-weight: 700;
+  color: #f0c840;
+  text-align: center;
+  word-break: break-word;
+  line-height: 1.35;
+  text-shadow: 0 1px 2px #000;
+  width: 100%;
+}
+.ep-type {
+  font-size: 10px;
+  color: #8a6030;
+  letter-spacing: .4px;
+  text-transform: uppercase;
+}
+.ep-level {
+  font-size: 10px;
+  font-weight: 800;
+  color: #c89030;
+  letter-spacing: 1px;
+  text-transform: uppercase;
+}
+.ep-upgrade-btn {
+  width: 100%;
+  padding: 7px 0;
+  background: linear-gradient(135deg, #1a4a08, #0e2e04);
+  color: #70d050;
+  border: 1px solid #3a8020;
+  border-bottom: 2px solid #1e4a08;
+  border-radius: 7px;
+  font-size: 12px;
+  font-weight: 700;
+  cursor: pointer;
+  letter-spacing: .4px;
+  text-shadow: 0 1px 0 #000;
+  transition: all .12s;
+  pointer-events: auto;
+}
+.ep-upgrade-btn:hover {
+  background: linear-gradient(135deg, #285e10, #163a08);
+  border-color: #60c030;
+  color: #a0f060;
+  box-shadow: 0 0 14px rgba(80,200,20,.35);
+}
+.ep-upgrade-btn:active { transform: translateY(1px); }
+.ep-stats-placeholder {
+  font-size: 9px;
+  color: #4a3010;
+  font-style: italic;
+  margin-top: 4px;
+}

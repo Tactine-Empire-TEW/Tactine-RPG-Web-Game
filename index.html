@@ -1,0 +1,104 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tectine Empire</title>
+  <link rel="icon" type="image/png" href="Assets/Logo.png">
+  <link rel="stylesheet" href="src/style.css">
+</head>
+<body>
+
+  <canvas id="world"></canvas>
+  <div id="vignette"></div>
+
+  <!-- Top HUD -->
+  <div id="hud-top">
+    <img src="Assets/Logo.png" class="hud-logo" alt="TEW">
+    <div class="empire-name">
+      Tectine Empire <span class="empire-abbr">TEW</span>
+      <small id="biome-label">Grassland</small>
+    </div>
+    <div class="hud-space"></div>
+    <select id="biome-sel" class="biome-sel">
+      <option value="normal">Grassland</option>
+      <option value="snow">Snow</option>
+    </select>
+    <button id="btn-edit" class="hud-btn">✦ Edit</button>
+    <button id="btn-done" class="hud-btn done" style="display:none">✔ Done</button>
+  </div>
+
+  <!-- Edit panel -->
+  <div id="edit-panel">
+
+    <!-- How-to tips bar -->
+    <div id="edit-help">
+      <span class="help-tip">🖱 <b>Click</b> to place</span>
+      <span class="help-sep">·</span>
+      <span class="help-tip">✋ <b>Drag</b> placed item to move</span>
+      <span class="help-sep">·</span>
+      <span class="help-tip">✕ <b>Drag off-map</b> to delete</span>
+      <span class="help-sep">·</span>
+      <span class="help-tip">🗑 <b>Double-click</b> placed item to remove</span>
+      <span class="help-sep">·</span>
+      <span class="help-tip">⚓ Ship units need Water tiles</span>
+    </div>
+
+    <!-- Scrollable tile grid -->
+    <div id="tile-strip"></div>
+
+    <!-- Hover info bar -->
+    <div id="strip-info"></div>
+
+    <!-- Category tabs -->
+    <div id="cat-bar">
+      <button class="cat active" data-cat="objects">Objects</button>
+      <button class="cat"        data-cat="units">Units</button>
+      <div class="cat-space"></div>
+    </div>
+  </div>
+
+  <!-- Bottom action buttons (hidden in edit mode) -->
+  <div id="bottom-actions">
+    <button class="action-btn" id="btn-inventory">
+      <span class="action-icon">📦</span>
+      <span class="action-label">Inventory</span>
+    </button>
+    <button class="action-btn" id="btn-store">
+      <span class="action-icon">🏪</span>
+      <span class="action-label">Store</span>
+    </button>
+  </div>
+
+  <!-- Selected tile preview -->
+  <div id="sel-preview">
+    <canvas id="prev-cvs" width="58" height="58"></canvas>
+    <span id="prev-name">Nothing selected</span>
+  </div>
+
+  <!-- Floating map tooltip (hover over placed unit/object) -->
+  <div id="map-tooltip"></div>
+
+  <!-- Biome loading overlay -->
+  <div id="loading-overlay">
+    <div class="loading-inner">
+      <div class="loading-spinner"></div>
+      <div class="loading-text">Loading…</div>
+    </div>
+  </div>
+
+  <!-- Entity info panel (right side — shown on click in any mode) -->
+  <div id="entity-panel" class="entity-panel">
+    <div class="ep-preview-wrap">
+      <canvas id="ep-canvas" width="96" height="96"></canvas>
+    </div>
+    <div id="ep-name" class="ep-name">—</div>
+    <div id="ep-type" class="ep-type">—</div>
+    <div id="ep-level" class="ep-level"></div>
+    <button id="ep-upgrade" class="ep-upgrade-btn" style="display:none">⬆ Upgrade</button>
+    <div class="ep-stats-placeholder">— stats coming soon —</div>
+  </div>
+
+  <script type="module" src="src/main.js"></script>
+</body>
+</html>
