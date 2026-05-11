@@ -231,16 +231,86 @@ export class World {
   static load(w, h) {
     try {
       const raw = localStorage.getItem(STORAGE_KEY);
-      if (!raw) return new World(w, h);
+      if (!raw) return World._freshWorld(w, h);
       const d = JSON.parse(raw);
-      if (d.v !== 4 || d.w !== w || d.h !== h) return new World(w, h);
+      if (d.v !== 4 || d.w !== w || d.h !== h) return World._freshWorld(w, h);
       const world = new World(w, h);
       world._objects = d.objects;
       world._units   = d.units;
+      World._ensureTownhall(world);
+      World._ensureStarterBuildings(world);
       return world;
     } catch (_) {
-      return new World(w, h);
+      return World._freshWorld(w, h);
     }
+  }
+
+  /** Place Townhall at map centre if it is not already on the map. */
+  static _ensureTownhall(world) {
+    // Check whether the Townhall Top tile already exists anywhere
+    for (let r = 0; r < world.h; r++) {
+      for (let c = 0; c < world.w; c++) {
+        const o = world._objects[r][c];
+        if (o && o.tx === 16 && o.ty === 61) return; // already present
+      }
+    }
+    // Not found — place at centre
+    const cx = Math.floor(world.w / 2);
+    const cy = Math.floor(world.h / 2) - 1;
+    if (world.inBounds(cx, cy) && world.inBounds(cx, cy + 1) &&
+        !world._objects[cy][cx] && !world._objects[cy + 1][cx]) {
+      world._objects[cy][cx]     = { tx: 16, ty: 61 };
+      world._objects[cy + 1][cx] = { tx: 16, ty: 62 };
+      world._save();
+    }
+  }
+
+  /** Ensures Family House and Villagers Hut exist for tutorial — migrates old saves. */
+  static _ensureStarterBuildings(world) {
+    const cx = Math.floor(world.w / 2);
+    const cy = Math.floor(world.h / 2) - 1;
+    // Family House (left of Townhall)
+    let hasFH = false;
+    for (let r = 0; r < world.h && !hasFH; r++)
+      for (let c = 0; c < world.w && !hasFH; c++) {
+        const o = world._objects[r][c];
+        if (o && o.tx === 4 && o.ty === 50) hasFH = true;
+      }
+    if (!hasFH && world.inBounds(cx - 2, cy) && !world._objects[cy][cx - 2]) {
+      world._objects[cy][cx - 2] = { tx: 4, ty: 50 };
+      world._save();
+    }
+    // Villagers Hut (right of Townhall)
+    let hasVH = false;
+    for (let r = 0; r < world.h && !hasVH; r++)
+      for (let c = 0; c < world.w && !hasVH; c++) {
+        const o = world._objects[r][c];
+        if (o && o.tx === 4 && o.ty === 56) hasVH = true;
+      }
+    if (!hasVH && world.inBounds(cx + 2, cy) && !world._objects[cy][cx + 2]) {
+      world._objects[cy][cx + 2] = { tx: 4, ty: 56 };
+      world._save();
+    }
+  }
+
+  /** Creates a brand-new empty world and pre-places the Townhall at the map centre. */
+  static _freshWorld(w, h) {
+    const world = new World(w, h);
+    const cx = Math.floor(w / 2);
+    const cy = Math.floor(h / 2) - 1;
+    if (world.inBounds(cx, cy) && world.inBounds(cx, cy + 1)) {
+      world._objects[cy][cx]     = { tx: 16, ty: 61 }; // Townhall Top
+      world._objects[cy + 1][cx] = { tx: 16, ty: 62 }; // Townhall Bot
+    }
+    // Pre-place Family House (left) and Villagers Hut (right) for tutorial
+    if (world.inBounds(cx - 2, cy)) {
+      world._objects[cy][cx - 2] = { tx: 4, ty: 50 }; // Family House (Lvl1)
+    }
+    if (world.inBounds(cx + 2, cy)) {
+      world._objects[cy][cx + 2] = { tx: 4, ty: 56 }; // Villagers Hut (Lvl1)
+    }
+    world._save();
+    return world;
   }
 
   clear() {

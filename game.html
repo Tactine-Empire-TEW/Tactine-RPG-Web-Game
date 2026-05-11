@@ -1,0 +1,524 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tectine Empire</title>
+  <link rel="icon" type="image/png" href="Assets/Logo.png">
+  <link rel="stylesheet" href="src/style.css">
+  <!-- Auth is enforced server-side. If this page loaded, the user is authenticated. -->
+</head>
+<body>
+
+  <canvas id="world"></canvas>
+  <div id="vignette"></div>
+
+  <!-- Top HUD -->
+  <div id="hud-top">
+    <img src="Assets/Logo.png" class="hud-logo" alt="TEW">
+    <div class="empire-name">
+      Tectine Empire <span class="empire-abbr">TEW</span>
+      <small id="biome-label">Grassland</small>
+    </div>
+    <div class="hud-space"></div>
+
+    <!-- Ruflux currency widget -->
+    <div class="ruflux-hud">
+      <img src="Assets/coins/gold-coin.png" class="ruflux-hud-icon" alt="Ruflux">
+      <div class="ruflux-hud-info">
+        <span class="ruflux-hud-label">Rufluxes</span>
+        <span id="ruflux-count" class="ruflux-hud-amount">0</span>
+      </div>
+      <button id="btn-ruflux-add" class="ruflux-add-btn" title="Get more Rufluxes">+</button>
+    </div>
+
+    <select id="biome-sel" class="biome-sel">
+      <option value="normal">Grassland</option>
+      <option value="snow">Snow</option>
+    </select>
+    <button id="btn-logout" class="hud-logout-btn" title="Logout">
+      <svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><polyline points="16 17 21 12 16 7"/><line x1="21" y1="12" x2="9" y2="12"/></svg>
+      Logout
+    </button>
+  </div>
+
+  <!-- Store panel (left side) -->
+  <div id="store-overlay" class="store-overlay"></div>
+  <div id="store-panel" class="store-panel">
+    <div class="store-header">
+      <span class="store-title">🏪 Store</span>
+      <div class="store-balance">
+        <img src="Assets/coins/gold-coin.png" class="store-hdr-coin" alt="RF">
+        <span id="store-rf-count">0</span>
+        <span class="store-rf-label">RF</span>
+      </div>
+      <button id="store-close" class="store-close-btn" title="Close">✕</button>
+    </div>
+    <div class="store-cats">
+      <button class="store-cat active" data-cat="buildings">Buildings</button>
+      <button class="store-cat" data-cat="walls">Walls</button>
+    </div>
+    <div id="store-grid" class="store-grid"></div>
+    <div id="store-info" class="store-info"></div>
+  </div>
+
+  <!-- ── Inventory panel — no overlay, map stays interactive ── -->
+  <div id="inv-panel" class="inv-panel">
+
+    <!-- Header -->
+    <div class="inv-header">
+      <div class="inv-header-left">
+        <div class="inv-title-icon">⚔</div>
+        <div>
+          <div class="inv-title">Inventory</div>
+          <div class="inv-subtitle">Your collected items</div>
+        </div>
+      </div>
+      <div class="inv-count-pill">
+        <span id="inv-item-count">0</span>
+        <span class="inv-count-label">owned</span>
+      </div>
+      <button id="inv-close" class="inv-close-btn" title="Close">✕</button>
+    </div>
+
+    <!-- Category tabs -->
+    <div class="inv-tabs">
+      <button class="inv-cat active" data-cat="buildings">
+        <span class="inv-tab-icon">🏰</span>
+        <span>Buildings</span>
+      </button>
+      <button class="inv-cat" data-cat="walls">
+        <span class="inv-tab-icon">🧱</span>
+        <span>Walls</span>
+      </button>
+      <button class="inv-cat" data-cat="units">
+        <span class="inv-tab-icon">⚔️</span>
+        <span>Units</span>
+      </button>
+      <button class="inv-cat" data-cat="water">
+        <span class="inv-tab-icon">💧</span>
+        <span>Water</span>
+      </button>
+    </div>
+
+    <!-- How-to hint -->
+    <div class="inv-hint">
+      <div class="inv-hint-row">🖱 <b>Click</b> item to arm it</div>
+      <div class="inv-hint-row">🗺 <b>Click / drag</b> on map to place</div>
+      <div class="inv-hint-row">↩ <b>Double-click</b> placed item to reclaim</div>
+    </div>
+
+    <!-- Item grid -->
+    <div id="inv-grid" class="inv-grid"></div>
+  </div>
+
+  <!-- ── Quantity picker modal ── -->
+  <div id="qty-overlay" class="modal-overlay"></div>
+  <div id="qty-modal" class="qty-modal">
+
+    <!-- Top: sprite + item info -->
+    <div class="qty-top">
+      <div class="qty-sprite-wrap">
+        <div id="qty-preview" class="qty-preview"></div>
+      </div>
+      <div class="qty-info">
+        <div class="qty-item-label">Purchasing</div>
+        <div id="qty-item-name" class="qty-item-name"></div>
+        <div class="qty-unit-price">
+          <img src="Assets/coins/gold-coin.png" class="qty-coin-sm" alt="RF">
+          <span id="qty-price-per"></span>
+          <span class="qty-rf-dim">RF each</span>
+        </div>
+      </div>
+    </div>
+
+    <div class="qty-divider"></div>
+
+    <!-- Quantity selector -->
+    <div class="qty-section-label">Quantity</div>
+    <div class="qty-stepper">
+      <button id="qty-dec" class="qty-step-btn">−</button>
+      <input id="qty-input" type="number" class="qty-input" value="1" min="1">
+      <button id="qty-inc" class="qty-step-btn">+</button>
+    </div>
+
+    <!-- Total cost -->
+    <div class="qty-total-card">
+      <span class="qty-total-label">Total Cost</span>
+      <div class="qty-total-amount">
+        <img src="Assets/coins/gold-coin.png" class="qty-coin-lg" alt="RF">
+        <strong id="qty-total">0</strong>
+        <span class="qty-rf-dim">RF</span>
+      </div>
+      <div id="qty-balance-note" class="qty-balance-note"></div>
+    </div>
+
+    <!-- Buttons -->
+    <div class="qty-btns">
+      <button id="qty-cancel" class="qty-btn-cancel">✕ Cancel</button>
+      <button id="qty-confirm" class="qty-btn-confirm">
+        <img src="Assets/coins/gold-coin.png" class="qty-coin-sm" alt="RF">
+        Buy Now
+      </button>
+    </div>
+  </div>
+
+  <!-- ── Logout confirmation modal ── -->
+  <div id="logout-overlay" class="modal-overlay"></div>
+  <div id="logout-modal" class="logout-modal">
+    <div class="logout-icon">⏻</div>
+    <h2 class="logout-title">Leave Your Empire?</h2>
+    <p class="logout-desc">Your progress has been saved. You can return any time.</p>
+    <div class="logout-btns">
+      <button id="logout-cancel" class="logout-btn-stay">Stay</button>
+      <button id="logout-confirm" class="logout-btn-leave">Log Out</button>
+    </div>
+    <div class="logout-danger-zone">
+      <button id="btn-delete-account" class="logout-delete-link">⚠ Delete Account</button>
+    </div>
+  </div>
+
+  <!-- Delete account confirmation modal -->
+  <div id="delete-overlay" class="modal-overlay"></div>
+  <div id="delete-modal" class="delete-modal">
+    <div class="delete-warn-icon">⚠</div>
+    <h2 class="delete-title">Destroy Your Empire?</h2>
+    <p class="delete-desc">This will permanently delete your account — all progress, Rufluxes, buildings and units will be lost forever. This cannot be undone.</p>
+    <div class="delete-btns">
+      <button id="delete-cancel" class="logout-btn-stay">Keep Empire</button>
+      <button id="delete-confirm" class="delete-btn-destroy">Destroy Everything</button>
+    </div>
+  </div>
+
+  <!-- Edit panel -->
+  <div id="edit-panel">
+    <div id="edit-help">
+      <span class="help-tip">🖱 <b>Click</b> to place</span>
+      <span class="help-sep">·</span>
+      <span class="help-tip">✋ <b>Drag</b> placed item to move</span>
+      <span class="help-sep">·</span>
+      <span class="help-tip">✕ <b>Drag off-map</b> to delete</span>
+      <span class="help-sep">·</span>
+      <span class="help-tip">🗑 <b>Double-click</b> placed item to remove</span>
+      <span class="help-sep">·</span>
+      <span class="help-tip">⚓ Ship units need Water tiles</span>
+    </div>
+    <div id="tile-strip"></div>
+    <div id="strip-info"></div>
+    <div id="cat-bar">
+      <button class="cat active" data-cat="objects">Objects</button>
+      <button class="cat"        data-cat="units">Units</button>
+      <div class="cat-space"></div>
+    </div>
+  </div>
+
+  <!-- Bottom action buttons -->
+  <div id="bottom-actions">
+    <button class="action-btn" id="btn-inventory">
+      <span class="action-icon">📦</span>
+      <span class="action-label">Inventory</span>
+    </button>
+    <button class="action-btn" id="btn-store">
+      <span class="action-icon">🏪</span>
+      <span class="action-label">Store</span>
+    </button>
+  </div>
+
+  <!-- Selected tile preview -->
+  <div id="sel-preview">
+    <canvas id="prev-cvs" width="58" height="58"></canvas>
+    <span id="prev-name">Nothing selected</span>
+  </div>
+
+  <!-- Floating map tooltip -->
+  <div id="map-tooltip"></div>
+
+  <!-- Biome loading overlay -->
+  <div id="loading-overlay">
+    <div class="loading-inner">
+      <div class="loading-spinner"></div>
+      <div class="loading-text">Loading…</div>
+    </div>
+  </div>
+
+  <!-- Entity info panel -->
+  <div id="entity-panel" class="entity-panel">
+    <div class="ep-preview-wrap">
+      <canvas id="ep-canvas" width="96" height="96"></canvas>
+    </div>
+    <div id="ep-name"  class="ep-name">—</div>
+    <div id="ep-type"  class="ep-type">—</div>
+    <div id="ep-level" class="ep-level"></div>
+    <div id="ep-capacity" class="ep-capacity" style="display:none">
+      <span class="ep-cap-icon">👥</span>
+      <span id="ep-cap-value">Capacity: 5 units</span>
+    </div>
+    <div id="ep-speed" class="ep-speed" style="display:none">
+      <span class="ep-speed-icon">⚡</span>
+      <span id="ep-speed-value">Work Speed +10%</span>
+    </div>
+    <div id="ep-production" class="ep-production" style="display:none">
+      <span class="ep-prod-icon">🌾</span>
+      <span id="ep-prod-value">Production +10%</span>
+    </div>
+    <button id="ep-upgrade" class="ep-upgrade-btn" style="display:none">⬆ Upgrade</button>
+    <button id="ep-sell-unit" class="ep-sell-unit-btn" style="display:none">💰 Sell Unit</button>
+    <button id="ep-recruit" class="ep-recruit-btn" style="display:none">⚔ Recruit Units</button>
+    <div id="ep-residents" class="ep-residents" style="display:none">
+      <div class="ep-res-header">
+        <span class="ep-res-title">👥 House Residents</span>
+        <span class="ep-res-hint">Sell to free capacity</span>
+      </div>
+      <div id="ep-residents-list" class="ep-res-list"></div>
+    </div>
+    <div class="ep-stats-placeholder">— stats coming soon —</div>
+  </div>
+
+  <!-- Unit Recruitment Panel (opened via Family House) -->
+  <div id="recruit-overlay" class="store-overlay"></div>
+  <div id="recruit-panel" class="recruit-panel">
+    <div class="recruit-header">
+      <div class="recruit-header-left">
+        <span class="recruit-icon">🏠</span>
+        <div>
+          <div class="recruit-title">Recruit Units</div>
+          <div class="recruit-sub">Train warriors from your Family House</div>
+        </div>
+      </div>
+      <div class="store-balance">
+        <img src="Assets/coins/gold-coin.png" class="store-hdr-coin" alt="RF">
+        <span id="recruit-rf-count">0</span>
+        <span class="store-rf-label">RF</span>
+      </div>
+      <button id="recruit-close" class="store-close-btn" title="Close">✕</button>
+    </div>
+    <div class="recruit-cap-bar">
+      <span class="recruit-cap-label">🏠 House capacity</span>
+      <span id="recruit-cap-status" class="recruit-cap-status">0/5</span>
+    </div>
+    <div id="recruit-grid" class="store-grid"></div>
+    <div id="recruit-info" class="store-info"></div>
+  </div>
+
+  <!-- Ruflux shop overlay -->
+  <div id="ruflux-overlay" class="ruflux-overlay">
+    <div class="ruflux-modal">
+
+      <div class="ruflux-modal-header">
+        <img src="Assets/coins/golden-cup.png" class="modal-header-icon" alt="">
+        <div class="modal-header-text">
+          <div class="modal-title">Ruflux Treasury</div>
+          <div class="modal-subtitle">Power your empire — Rufluxes never expire</div>
+        </div>
+        <button id="ruflux-close" class="ruflux-close-btn" title="Close">✕</button>
+      </div>
+
+      <div class="modal-balance-bar">
+        <img src="Assets/coins/gold-coin.png" class="balance-icon" alt="">
+        <span>Your Balance</span>
+        <strong id="ruflux-modal-count">0</strong>
+        <span>Rufluxes</span>
+        <span id="ruflux-modal-value" class="balance-usd">≈ $0.00</span>
+        <span class="balance-deco"><img src="Assets/coins/cup-and-coins.png" alt=""></span>
+      </div>
+
+      <div class="ruflux-rate-bar">
+        <img src="Assets/coins/gold-coin.png" class="rate-icon" alt="">
+        <span class="rate-label">Exchange Rate</span>
+        <span id="rate-pill-1" class="rate-pill">1,000 Rufluxes = <strong>$1.00</strong></span>
+        <span class="rate-sep">·</span>
+        <span id="rate-pill-2" class="rate-pill">$1.00 = <strong>1,000 Rufluxes</strong></span>
+        <span class="rate-note">Redeem for gift cards &amp; rewards · 1&nbsp;RF&nbsp;=&nbsp;$0.001</span>
+      </div>
+
+      <div id="ruflux-packages" class="ruflux-packages"></div>
+
+      <!-- Market chart -->
+      <div class="market-section">
+        <div class="market-header">
+          <div class="market-header-left">
+            <span class="market-title">📈 Ruflux Market Rate</span>
+            <span id="market-current-rate" class="market-current-rate">1 RF = $0.0010 USD</span>
+          </div>
+          <div class="market-header-right">
+            <span id="market-trend" class="market-trend-val">— (7d)</span>
+            <span id="market-source" class="market-source">Loading…</span>
+          </div>
+        </div>
+        <canvas id="rf-market-chart" width="780" height="160" class="market-canvas"></canvas>
+        <div class="market-legend">
+          <span class="legend-dot dot-line"></span><span>RF/USD value</span>
+          <span class="legend-dot dot-base"></span><span>$0.001 baseline</span>
+          <span class="market-note">When dollar weakens → your RF is worth more · Updated daily via ECB</span>
+        </div>
+      </div>
+
+      <!-- Investment model -->
+      <div class="invest-section">
+        <div class="invest-title">⚖ How Rufluxes Work</div>
+        <div class="invest-cards">
+          <div class="invest-card">
+            <div class="invest-icon">💰</div>
+            <div class="invest-card-title">You Invest</div>
+            <div class="invest-card-body">Buy Rufluxes with real dollars. Your purchase funds the empire's treasury pool.</div>
+          </div>
+          <div class="invest-arrow">→</div>
+          <div class="invest-card">
+            <div class="invest-icon">🏦</div>
+            <div class="invest-card-title">Empire Works It</div>
+            <div class="invest-card-body">The game deploys pooled funds as short-term working capital. Your dollars act as collateral.</div>
+          </div>
+          <div class="invest-arrow">→</div>
+          <div class="invest-card">
+            <div class="invest-icon">📊</div>
+            <div class="invest-card-title">RF Appreciates</div>
+            <div class="invest-card-body">When the dollar weakens your Rufluxes become worth more — rewarding early stakeholders.</div>
+          </div>
+          <div class="invest-arrow">→</div>
+          <div class="invest-card">
+            <div class="invest-icon">🎁</div>
+            <div class="invest-card-title">Both Profit</div>
+            <div class="invest-card-body">Empire earns on yield &amp; spread. You earn on RF appreciation. Redeem anytime.</div>
+          </div>
+        </div>
+      </div>
+
+      <div class="ruflux-modal-footer">
+        <img src="Assets/coins/cup-and-coins.png" class="footer-deco" alt="">
+        <span>All purchases are instant · Rufluxes never expire · Support the empire</span>
+        <img src="Assets/coins/cup-and-coins.png" class="footer-deco footer-deco-flip" alt="">
+      </div>
+
+    </div>
+  </div>
+
+  <!-- Tutorial map pointer — tracks a world tile each frame -->
+  <div id="tut-map-pointer" class="tut-map-pointer" style="display:none"></div>
+
+  <!-- Step-by-step Tutorial Guide Card -->
+  <div id="tut-guide" class="tut-guide">
+    <div class="tut-top-row">
+      <span id="tut-step-label" class="tut-step-label">1 / 6</span>
+      <div class="tut-progress-bar"><div id="tut-progress-fill" class="tut-progress-fill"></div></div>
+      <button id="tut-skip" class="tut-skip-btn">Skip</button>
+    </div>
+    <div id="tut-arrow" class="tut-arrow">↑</div>
+    <div id="tut-action" class="tut-action"></div>
+    <button id="tut-next" class="tut-next-btn">Next →</button>
+  </div>
+
+  <!-- Unit Info Panel (shown when a recruit card is clicked) -->
+  <div id="unit-info-panel" class="unit-info-panel">
+    <button id="uip-close" class="uip-close-btn" title="Close">✕</button>
+    <canvas id="uip-canvas" width="80" height="80" class="uip-canvas"></canvas>
+    <div id="uip-name"     class="uip-name"></div>
+    <div id="uip-category" class="uip-category"></div>
+    <div class="uip-badges">
+      <span id="uip-range-badge" class="uip-badge"></span>
+      <span id="uip-cap-badge"   class="uip-badge uip-cap-badge"></span>
+    </div>
+    <div id="uip-stats" class="uip-stats">
+      <div class="uip-stat-row"><span class="uip-stat-lbl">⚔ ATK</span><div class="uip-bar-wrap"><div id="uip-atk-bar" class="uip-bar uip-bar-atk"></div></div><span id="uip-atk-val" class="uip-stat-val"></span></div>
+      <div class="uip-stat-row"><span class="uip-stat-lbl">🛡 DEF</span><div class="uip-bar-wrap"><div id="uip-def-bar" class="uip-bar uip-bar-def"></div></div><span id="uip-def-val" class="uip-stat-val"></span></div>
+      <div class="uip-stat-row"><span class="uip-stat-lbl">💨 SPD</span><div class="uip-bar-wrap"><div id="uip-spd-bar" class="uip-bar uip-bar-spd"></div></div><span id="uip-spd-val" class="uip-stat-val"></span></div>
+      <div class="uip-stat-row"><span class="uip-stat-lbl">✨ SP.ATK</span><div class="uip-bar-wrap"><div id="uip-satk-bar" class="uip-bar uip-bar-satk"></div></div><span id="uip-satk-val" class="uip-stat-val"></span></div>
+      <div class="uip-stat-row"><span class="uip-stat-lbl">💎 SP.DEF</span><div class="uip-bar-wrap"><div id="uip-sdef-bar" class="uip-bar uip-bar-sdef"></div></div><span id="uip-sdef-val" class="uip-stat-val"></span></div>
+    </div>
+    <button id="uip-buy-btn" class="uip-buy-btn"></button>
+  </div>
+
+  <script type="module" src="src/main.js?v=24"></script>
+
+  <script type="module">
+    import { auth, economy, worldApi } from './src/api.js';
+    import { getRuflux } from './src/ruflux.js';
+
+    // ── Styled logout modal ──────────────────────────────────────────
+    const logoutModal   = document.getElementById('logout-modal');
+    const logoutOverlay = document.getElementById('logout-overlay');
+
+    function openLogout() {
+      logoutModal.classList.add('open');
+      logoutOverlay.classList.add('open');
+    }
+    function closeLogout() {
+      logoutModal.classList.remove('open');
+      logoutOverlay.classList.remove('open');
+    }
+
+    document.getElementById('btn-logout').addEventListener('click', openLogout);
+    document.getElementById('logout-cancel').addEventListener('click', closeLogout);
+    logoutOverlay.addEventListener('click', closeLogout);
+    document.getElementById('logout-confirm').addEventListener('click', async () => {
+      document.getElementById('logout-confirm').textContent = 'Leaving…';
+      document.getElementById('logout-confirm').disabled = true;
+      await auth.logout();
+    });
+
+    // ── Delete account modal ──────────────────────────────────────
+    const deleteModal   = document.getElementById('delete-modal');
+    const deleteOverlay = document.getElementById('delete-overlay');
+
+    document.getElementById('btn-delete-account').addEventListener('click', () => {
+      // Close logout modal first
+      logoutModal.classList.remove('open');
+      logoutOverlay.classList.remove('open');
+      deleteModal.classList.add('open');
+      deleteOverlay.classList.add('open');
+    });
+    document.getElementById('delete-cancel').addEventListener('click', () => {
+      deleteModal.classList.remove('open');
+      deleteOverlay.classList.remove('open');
+    });
+    deleteOverlay.addEventListener('click', () => {
+      deleteModal.classList.remove('open');
+      deleteOverlay.classList.remove('open');
+    });
+    document.getElementById('delete-confirm').addEventListener('click', async () => {
+      const btn = document.getElementById('delete-confirm');
+      btn.textContent = 'Deleting…';
+      btn.disabled = true;
+      try { await fetch('/api/auth/delete', { method: 'DELETE', credentials: 'include' }); } catch (_) {}
+      localStorage.clear();
+      window.location.href = '/';
+    });
+
+    // Auto-save world state to server every 60 seconds
+    const WORLD_KEY = 'seWorld_v4';
+    setInterval(async () => {
+      try {
+        const raw = localStorage.getItem(WORLD_KEY);
+        if (!raw) return;
+        const biome = document.getElementById('biome-sel')?.value ?? 'normal';
+        await worldApi.save(JSON.parse(raw), biome);
+      } catch (_) {}
+    }, 60_000);
+
+    // Sync RF balance to server every 30 seconds
+    setInterval(async () => {
+      try {
+        await economy.setBalance(getRuflux());
+      } catch (_) {}
+    }, 30_000);
+
+    // On load: pull server balance and world state if available
+    (async () => {
+      try {
+        const [balData, worldData] = await Promise.all([economy.getBalance(), worldApi.load()]);
+        // Use server balance if higher (prevents loss on multi-device)
+        const { addRuflux, getRuflux } = await import('./src/ruflux.js');
+        if (balData.ruflux_balance > getRuflux()) {
+          const diff = balData.ruflux_balance - getRuflux();
+          addRuflux(diff);
+        }
+        // Restore server world state if local is empty
+        if (worldData.world_data && !localStorage.getItem(WORLD_KEY)) {
+          localStorage.setItem(WORLD_KEY, JSON.stringify(worldData.world_data));
+          location.reload(); // reload to render restored world
+        }
+      } catch (_) {}
+    })();
+  </script>
+
+</body>
+</html>

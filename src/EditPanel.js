@@ -3,7 +3,7 @@ import {
   CHAR_TYPES, CHAR_COLORS, CHAR_COLORS_BY_TYPE, CHAR_SRC,
   CHAR_TYPE_LABELS,
   getUnitDisplayName, getObjectDisplayName, isHiddenTile,
-  BLDG_TOP_BOT_PAIRS, BLDG_BOT_KEYS,
+  BLDG_TOP_BOT_PAIRS, BLDG_BOT_KEYS, getObjectLevel,
 } from './constants.js';
 import { getSheet, getChar, loadChar } from './assets.js';
 
@@ -86,18 +86,29 @@ export class EditPanel {
           const cardBg  = section.cardBg ?? '#1a2810';
           const cardH   = bot ? 116 : 58;   // double height for 2-tile buildings
 
-          const card = this._makeCard(58, cardH, mc => {
+          const CARD_W = 72;
+          const lvl = getObjectLevel(tx, ty);
+          const card = this._makeCard(CARD_W, bot ? CARD_W * 2 : CARD_W, mc => {
             const mctx = mc.getContext('2d');
             mctx.imageSmoothingEnabled = false;
             mctx.fillStyle = cardBg;
             mctx.fillRect(0, 0, mc.width, mc.height);
             if (sheet) {
               mctx.drawImage(sheet, tx * TILE_SRC, ty * TILE_SRC, TILE_SRC, TILE_SRC,
-                             0, 0, 58, 58);
+                             0, 0, CARD_W, CARD_W);
               if (bot) {
                 mctx.drawImage(sheet, bot.tx * TILE_SRC, bot.ty * TILE_SRC, TILE_SRC, TILE_SRC,
-                               0, 58, 58, 58);
+                               0, CARD_W, CARD_W, CARD_W);
               }
+            }
+            if (lvl) {
+              const badge = `L${lvl}`;
+              mctx.font = 'bold 10px monospace';
+              const bw = mctx.measureText(badge).width + 5;
+              mctx.fillStyle = 'rgba(0,0,0,0.65)';
+              mctx.fillRect(0, 0, bw, 15);
+              mctx.fillStyle = '#ffd54f';
+              mctx.fillText(badge, 2, 12);
             }
           });
 
@@ -152,7 +163,7 @@ export class EditPanel {
 
         // Create card; capture the inner canvas for lazy-update
         let innerCanvas;
-        const card = this._makeCard(58, 58, mc => {
+        const card = this._makeCard(72, 72, mc => {
           innerCanvas = mc;
           const mctx = mc.getContext('2d');
           mctx.imageSmoothingEnabled = false;

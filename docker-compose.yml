@@ -1,0 +1,49 @@
+version: "3.9"
+
+services:
+
+  # ── PostgreSQL ────────────────────────────────────────────────────────
+  postgres:
+    image: postgres:15-alpine
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB:       tactine_rpg
+      POSTGRES_USER:     tactine
+      POSTGRES_PASSWORD: ${DB_PASSWORD:-tactine_pass}
+    ports:
+      - "5432:5432"        # exposed for DBeaver access
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tactine -d tactine_rpg"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+
+  # ── FastAPI backend ───────────────────────────────────────────────────
+  backend:
+    build: ./backend
+    restart: unless-stopped
+    environment:
+      DATABASE_URL: postgresql://tactine:${DB_PASSWORD:-tactine_pass}@postgres:5432/tactine_rpg
+      SECRET_KEY:   ${SECRET_KEY:-change-this-in-production}
+    depends_on:
+      postgres:
+        condition: service_healthy
+    ports:
+      - "8000:8000"        # optional direct access for debugging
+
+  # ── Nginx (frontend + reverse proxy) ─────────────────────────────────
+  nginx:
+    image: nginx:alpine
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/conf.d/default.conf:ro
+      - ./:/usr/share/nginx/html:ro   # serve all project files
+    depends_on:
+      - backend
+
+volumes:
+  postgres_data:

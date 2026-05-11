@@ -3,102 +3,936 @@
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
-  <title>Tectine Empire</title>
+  <title>Tectine Empire — Build Your Legacy</title>
   <link rel="icon" type="image/png" href="Assets/Logo.png">
-  <link rel="stylesheet" href="src/style.css">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Cinzel:wght@400;500;600;700&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+
+  <style>
+    /* ══════════════════════════════════════════════
+       TOKENS — cave / dungeon / ember palette
+    ══════════════════════════════════════════════ */
+    :root {
+      --cave:        #05030a;
+      --cave-2:      #0c0806;
+      --stone:       #1a1208;
+      --ember:       #c87810;
+      --ember-hi:    #f0a020;
+      --ember-glow:  rgba(200,120,16,.16);
+      --torch:       #d45008;
+      --parch:       #f0d8a8;
+      --parch-dim:   #9a7a42;
+      --parch-muted: #4a3818;
+      --border:      rgba(200,120,16,.18);
+      --border-h:    rgba(200,120,16,.55);
+    }
+
+    *, *::before, *::after { margin:0; padding:0; box-sizing:border-box; }
+    html { scroll-behavior:smooth; }
+
+    body {
+      background: var(--cave);
+      color: var(--parch);
+      font-family: 'Inter', sans-serif;
+      overflow-x: hidden;
+    }
+
+    /* Stone-block texture on body */
+    body::before {
+      content:'';
+      position:fixed; inset:0; z-index:-1; pointer-events:none;
+      background-image:
+        repeating-linear-gradient(0deg,   rgba(0,0,0,.06) 0, rgba(0,0,0,.06) 1px, transparent 1px, transparent 40px),
+        repeating-linear-gradient(90deg,  rgba(0,0,0,.04) 0, rgba(0,0,0,.04) 1px, transparent 1px, transparent 60px);
+    }
+
+    /* ── Animations ── */
+    @keyframes bfu {
+      from { opacity:0; filter:blur(18px); transform:translateY(36px); }
+      to   { opacity:1; filter:blur(0);    transform:translateY(0); }
+    }
+    .bfu { opacity:0; animation:bfu 1s ease-out forwards; }
+
+    @keyframes flicker {
+      0%,100% { opacity:.75; }
+      30%     { opacity:1;   }
+      55%     { opacity:.6;  }
+      80%     { opacity:.9;  }
+    }
+
+    @keyframes pulse-glow {
+      0%,100% { box-shadow:0 0 60px rgba(200,120,16,.35), 0 0 120px rgba(200,120,16,.12); }
+      50%     { box-shadow:0 0 90px rgba(200,120,16,.55), 0 0 180px rgba(200,120,16,.2);  }
+    }
+
+    /* Scroll reveal */
+    .rev { opacity:0; transform:translateY(28px); transition:opacity .75s ease,transform .75s ease; }
+    .rev.in { opacity:1; transform:translateY(0); }
+
+    /* ── Liquid glass ── */
+    .lg {
+      background:rgba(255,255,255,.01);
+      backdrop-filter:blur(4px); -webkit-backdrop-filter:blur(4px);
+      box-shadow:inset 0 1px 1px rgba(255,255,255,.1);
+      position:relative; overflow:hidden; border:none;
+    }
+    .lg::before {
+      content:''; position:absolute; inset:0; border-radius:inherit; padding:1.4px;
+      background:linear-gradient(180deg,rgba(255,255,255,.4) 0%,rgba(255,255,255,.12) 20%,
+        rgba(255,255,255,0) 40%,rgba(255,255,255,0) 60%,rgba(255,255,255,.12) 80%,rgba(255,255,255,.4) 100%);
+      -webkit-mask:linear-gradient(#fff 0 0) content-box,linear-gradient(#fff 0 0);
+      -webkit-mask-composite:xor; mask-composite:exclude; pointer-events:none;
+    }
+
+    /* ── Shared typography ── */
+    .tag {
+      font-family:'Cinzel',serif; font-size:10px; letter-spacing:3px;
+      text-transform:uppercase; color:var(--ember); opacity:.75;
+      display:block; margin-bottom:14px;
+    }
+    .heading-xl {
+      font-family:'Cinzel',serif;
+      font-size:clamp(32px,5vw,62px); font-weight:700;
+      line-height:1.1; letter-spacing:.5px;
+      color:var(--parch);
+      text-shadow:0 0 60px rgba(200,120,16,.3);
+      margin-bottom:20px;
+    }
+    .heading-lg {
+      font-family:'Cinzel',serif;
+      font-size:clamp(26px,3.5vw,46px); font-weight:700;
+      line-height:1.15; letter-spacing:.3px;
+      color:var(--parch);
+      text-shadow:0 0 40px rgba(200,120,16,.25);
+      margin-bottom:18px;
+    }
+    .body-lg {
+      font-size:17px; line-height:1.8;
+      color:var(--parch-dim); max-width:540px;
+    }
+    .body-md {
+      font-size:15px; line-height:1.75;
+      color:var(--parch-muted);
+    }
+
+    /* ── Ornament divider ── */
+    .orn { display:flex;align-items:center;gap:14px;max-width:260px; }
+    .orn.center { margin:0 auto; }
+    .orn-l { flex:1;height:1px;background:linear-gradient(90deg,transparent,var(--ember),transparent);opacity:.4; }
+    .orn-g { width:8px;height:8px;background:var(--ember);transform:rotate(45deg);
+              box-shadow:0 0 12px rgba(200,120,16,.8);flex-shrink:0; }
+
+    /* ── Buttons ── */
+    .btn-ember {
+      display:inline-flex; align-items:center; gap:8px;
+      font-family:'Cinzel',serif; font-size:11px; font-weight:700;
+      letter-spacing:2.5px; text-transform:uppercase;
+      padding:16px 48px; border-radius:3px;
+      border:none; cursor:pointer; text-decoration:none;
+      background:linear-gradient(160deg,#e09020 0%,#a05c0a 55%,#7a3e05 100%);
+      color:#04020a;
+      box-shadow:0 4px 32px rgba(200,120,16,.45),inset 0 1px 0 rgba(255,220,100,.25);
+      transition:transform .15s,box-shadow .2s;
+    }
+    .btn-ember:hover {
+      transform:translateY(-3px);
+      box-shadow:0 10px 48px rgba(200,120,16,.6),inset 0 1px 0 rgba(255,220,100,.3);
+    }
+    .btn-ember:active { transform:translateY(0); }
+
+    .btn-ghost {
+      display:inline-flex; align-items:center; gap:8px;
+      font-family:'Cinzel',serif; font-size:11px; font-weight:600;
+      letter-spacing:2px; text-transform:uppercase;
+      padding:15px 40px; border-radius:3px;
+      color:var(--ember); border:1px solid rgba(200,120,16,.38);
+      background:rgba(200,120,16,.06);
+      text-decoration:none; cursor:pointer;
+      transition:border-color .2s,background .2s,transform .15s;
+    }
+    .btn-ghost:hover {
+      border-color:rgba(200,120,16,.7); background:rgba(200,120,16,.12);
+      transform:translateY(-2px);
+    }
+
+    /* ── Pixel art frame ── */
+    .px-frame {
+      border-radius:6px;
+      border:2px solid #3a2208;
+      outline:1px solid #6a4010;
+      image-rendering:pixelated;
+      image-rendering:crisp-edges;
+      box-shadow:
+        0 0 0 6px #0d0805,
+        0 0 60px rgba(200,120,16,.4),
+        0 0 120px rgba(200,120,16,.15),
+        inset 0 0 30px rgba(0,0,0,.6);
+      animation:pulse-glow 4s ease-in-out infinite;
+      display:block; width:100%;
+    }
+
+    /* ── Torch corner decoration ── */
+    .torch-l,.torch-r {
+      position:absolute; width:300px; height:300px; pointer-events:none; z-index:0;
+      border-radius:50%;
+    }
+    .torch-l {
+      top:50%;left:-80px; transform:translateY(-50%);
+      background:radial-gradient(ellipse at 0% 50%,rgba(212,80,8,.25) 0%,transparent 65%);
+      animation:flicker 4s ease-in-out infinite;
+    }
+    .torch-r {
+      top:50%;right:-80px; transform:translateY(-50%);
+      background:radial-gradient(ellipse at 100% 50%,rgba(212,80,8,.25) 0%,transparent 65%);
+      animation:flicker 4s ease-in-out infinite 1.3s;
+    }
+
+    /* ════════════════════════════════════════════
+       NAVBAR
+    ════════════════════════════════════════════ */
+    #nav {
+      position:fixed; inset:0 0 auto 0; z-index:500;
+      display:flex; align-items:center; justify-content:space-between;
+      padding:14px 56px;
+      transition:background .35s,border-color .35s;
+    }
+    #nav.solid {
+      background:rgba(5,3,10,.92);
+      backdrop-filter:blur(16px); -webkit-backdrop-filter:blur(16px);
+      border-bottom:1px solid var(--border);
+    }
+    @media(max-width:768px){ #nav{padding:12px 18px;} }
+
+    .brand { display:flex;align-items:center;gap:10px;text-decoration:none; }
+    .brand img { height:44px; filter:drop-shadow(0 0 12px rgba(200,120,16,.6)); }
+    .brand-name {
+      font-family:'Cinzel',serif; font-size:13px; font-weight:700;
+      color:var(--ember-hi); letter-spacing:.5px;
+      text-shadow:0 0 20px rgba(200,120,16,.5);
+    }
+
+    .nav-links { display:flex;gap:36px; }
+    @media(max-width:1024px){ .nav-links{display:none;} }
+    .nav-links a {
+      font-family:'Cinzel',serif; font-size:10px; letter-spacing:2px;
+      text-transform:uppercase; color:var(--parch-dim);
+      text-decoration:none; transition:color .2s;
+    }
+    .nav-links a:hover { color:var(--ember-hi); }
+
+    .nav-right { display:flex;align-items:center;gap:10px; }
+
+    .nav-search {
+      display:flex;align-items:center;gap:8px;
+      padding:9px 20px; border-radius:9999px;
+      cursor:pointer; color:#fff; font-size:14px;
+      border:none; background:none; font-family:'Inter',sans-serif;
+    }
+    @media(max-width:640px){ .nav-search{display:none;} }
+
+    .nav-user {
+      width:40px;height:40px;border-radius:50%;
+      display:flex;align-items:center;justify-content:center;
+      cursor:pointer;border:none;background:none;color:#fff;
+    }
+    @media(max-width:640px){ .nav-user{display:none;} }
+
+    .nav-ham {
+      width:40px;height:40px;border-radius:50%;
+      display:none;align-items:center;justify-content:center;
+      cursor:pointer;border:none;background:none;color:#fff;
+    }
+    @media(max-width:1024px){ .nav-ham{display:flex;} }
+
+    /* Mobile menu */
+    #mob {
+      position:fixed;top:72px;left:0;right:0;z-index:400;
+      background:rgba(8,5,15,.97); backdrop-filter:blur(16px);
+      border-bottom:1px solid var(--border);
+      padding:12px 20px 16px; flex-direction:column; gap:4px;
+      display:none;
+    }
+    #mob.open{display:flex;}
+    .mob-a {
+      padding:12px 14px;border-radius:6px;font-size:15px;
+      color:rgba(255,255,255,.7);text-decoration:none;transition:background .2s;
+      font-family:'Cinzel',serif; font-size:12px; letter-spacing:1.5px; text-transform:uppercase;
+    }
+    .mob-a:hover{background:rgba(200,120,16,.08);color:var(--ember-hi);}
+
+    /* ════════════════════════════════════════════
+       HERO — cinematic, crisp video, gradient overlay
+    ════════════════════════════════════════════ */
+    .hero {
+      position:relative; height:100vh; min-height:640px;
+      overflow:hidden; display:flex; flex-direction:column;
+    }
+
+    .hero video {
+      position:absolute; inset:0;
+      width:100%; height:100%; object-fit:cover; z-index:0;
+    }
+
+    /* Gradient only — crisp video, only darken edges/bottom for text contrast */
+    .hero-overlay {
+      position:absolute; inset:0; z-index:1; pointer-events:none;
+      background:
+        /* top band — navbar only */
+        linear-gradient(to bottom, rgba(5,3,10,.55) 0%, transparent 14%),
+        /* bottom — fade last 35% to dark, let video breathe above */
+        linear-gradient(to top, rgba(5,3,10,.96) 0%, rgba(5,3,10,.78) 16%,
+                                 rgba(5,3,10,.3)  34%, transparent 52%),
+        /* subtle edge vignette */
+        radial-gradient(ellipse 95% 95% at 50% 50%, transparent 40%, rgba(5,3,10,.38) 100%);
+    }
+
+    .hero-body {
+      position:relative; z-index:10;
+      flex:1; display:flex; flex-direction:column; justify-content:flex-end;
+      padding:0 64px 80px;
+    }
+    @media(max-width:768px){ .hero-body{padding:0 24px 52px;} }
+
+    .hero-inner {
+      display:flex; align-items:flex-end;
+      justify-content:space-between; gap:48px;
+    }
+    @media(max-width:768px){ .hero-inner{flex-direction:column;align-items:flex-start;gap:28px;} }
+
+    .hero-left { flex:1; }
+
+    .meta-row {
+      display:flex; align-items:center; flex-wrap:wrap; gap:24px;
+      margin-bottom:24px;
+    }
+    .meta-item {
+      display:flex; align-items:center; gap:8px;
+      font-family:'Cinzel',serif; font-size:11px;
+      font-weight:500; letter-spacing:2px;
+      color:rgba(240,216,168,.85);
+      text-shadow:0 1px 8px rgba(0,0,0,.8);
+    }
+    .meta-item svg { width:15px;height:15px;flex-shrink:0; }
+
+    /* The main hero headline — large enough to command attention */
+    .hero-h1 {
+      font-family:'Cinzel',serif;
+      font-size:clamp(46px,8vw,96px); font-weight:700;
+      letter-spacing:-.02em; line-height:1.0;
+      margin-bottom:22px;
+      color:#fff;
+      text-shadow:0 4px 40px rgba(0,0,0,.95), 0 0 80px rgba(200,120,16,.3);
+    }
+
+    .hero-desc {
+      font-size:clamp(16px,1.9vw,20px);
+      color:rgba(240,216,168,.72);
+      margin-bottom:40px; max-width:500px; line-height:1.75;
+      text-shadow:0 2px 12px rgba(0,0,0,.7);
+    }
+
+    .hero-btns { display:flex;align-items:center;gap:14px;flex-wrap:wrap; }
+
+    .btn-white {
+      display:inline-flex; align-items:center; gap:9px;
+      padding:16px 44px; border-radius:3px;
+      background:#fff; color:#04020a;
+      font-weight:700; font-size:12px; font-family:'Cinzel',serif;
+      letter-spacing:2px; text-transform:uppercase;
+      text-decoration:none; border:none; cursor:pointer;
+      box-shadow:0 4px 24px rgba(0,0,0,.5);
+      transition:background .2s,transform .15s,box-shadow .2s;
+    }
+    .btn-white:hover {
+      background:#f0d8a8; transform:translateY(-2px);
+      box-shadow:0 8px 32px rgba(0,0,0,.6);
+    }
+    .btn-white svg { fill:#04020a;width:15px;height:15px; }
+
+    .btn-glpill {
+      display:inline-flex; align-items:center; gap:8px;
+      padding:16px 40px; border-radius:3px;
+      color:rgba(240,216,168,.9); font-size:12px; font-family:'Cinzel',serif;
+      font-weight:600; letter-spacing:2px; text-transform:uppercase;
+      text-decoration:none; cursor:pointer;
+    }
+
+    .hero-right { display:flex;gap:10px;flex-shrink:0; }
+    @media(max-width:768px){ .hero-right{align-self:flex-start;} }
+
+    .btn-arrow {
+      display:inline-flex; align-items:center; gap:8px;
+      padding:14px 26px; border-radius:9999px;
+      color:#fff; font-size:11px; font-weight:600;
+      font-family:'Cinzel',serif; letter-spacing:1.5px; text-transform:uppercase;
+      text-decoration:none; cursor:pointer; transition:opacity .2s;
+    }
+    .btn-arrow:hover { opacity:.7; }
+
+    /* ════════════════════════════════════════════
+       SECTION BASE
+    ════════════════════════════════════════════ */
+    .section {
+      position:relative; overflow:hidden;
+      padding:120px 0;
+    }
+    @media(max-width:768px){ .section{padding:80px 0;} }
+
+    .container {
+      max-width:1240px; margin:0 auto;
+      padding:0 56px;
+    }
+    @media(max-width:768px){ .container{padding:0 22px;} }
+
+    /* ════════════════════════════════════════════
+       SECTION 1 — THE EMPIRE (GIF 1 + text)
+    ════════════════════════════════════════════ */
+    .s1 {
+      background:linear-gradient(160deg,#080506 0%,#0c0906 100%);
+      border-top:1px solid var(--border);
+      min-height:100vh; display:flex; align-items:center;
+    }
+    /* torch glows */
+    .s1::before {
+      content:''; position:absolute; top:50%;left:-100px;
+      width:500px;height:700px;
+      background:radial-gradient(ellipse at 0% 50%,rgba(212,80,8,.18) 0%,transparent 60%);
+      transform:translateY(-50%); pointer-events:none;
+      animation:flicker 5s ease-in-out infinite;
+    }
+    .s1-inner {
+      display:grid; grid-template-columns:1fr 1fr; gap:80px;
+      align-items:center; position:relative; z-index:1;
+    }
+    @media(max-width:900px){ .s1-inner{grid-template-columns:1fr;gap:48px;} }
+
+    .feat-list { list-style:none; margin-top:32px; display:flex; flex-direction:column; gap:18px; }
+    .feat-list li {
+      display:flex; align-items:flex-start; gap:14px;
+      font-size:15px; color:var(--parch-dim); line-height:1.7;
+    }
+    .feat-list li .fi {
+      width:36px; height:36px; border-radius:4px; flex-shrink:0;
+      background:rgba(200,120,16,.1); border:1px solid var(--border);
+      display:flex; align-items:center; justify-content:center;
+      font-size:18px; margin-top:1px;
+    }
+    .feat-list li strong {
+      display:block; font-family:'Cinzel',serif;
+      font-size:12px; letter-spacing:.5px; color:var(--parch); margin-bottom:3px;
+    }
+
+    /* ════════════════════════════════════════════
+       SECTION 2 — COMMAND YOUR FORCES (text + GIF 2)
+    ════════════════════════════════════════════ */
+    .s2 {
+      background:linear-gradient(160deg,#070408 0%,#0a0706 100%);
+      border-top:1px solid var(--border);
+      min-height:100vh; display:flex; align-items:center;
+    }
+    .s2::after {
+      content:''; position:absolute; top:50%;right:-100px;
+      width:500px;height:700px;
+      background:radial-gradient(ellipse at 100% 50%,rgba(200,80,8,.18) 0%,transparent 60%);
+      transform:translateY(-50%); pointer-events:none;
+      animation:flicker 5s ease-in-out infinite 2s;
+    }
+    .s2-inner {
+      display:grid; grid-template-columns:1fr 1fr; gap:80px;
+      align-items:center; position:relative; z-index:1;
+    }
+    @media(max-width:900px){ .s2-inner{grid-template-columns:1fr;gap:48px;} }
+    @media(max-width:900px){ .s2-inner .s2-gif{order:-1;} }
+
+    /* ════════════════════════════════════════════
+       SECTION 3 — WORLD PREVIEW (4-GIF grid)
+    ════════════════════════════════════════════ */
+    .s3 {
+      background:#050303;
+      border-top:1px solid var(--border);
+      padding:120px 0;
+    }
+    .s3-head { text-align:center; margin-bottom:72px; }
+    .gif-grid {
+      display:grid; grid-template-columns:1fr 1fr; gap:20px;
+      position:relative; z-index:1;
+    }
+    @media(max-width:768px){ .gif-grid{grid-template-columns:1fr;} }
+    .gif-cell {
+      position:relative; overflow:hidden; border-radius:8px;
+      border:2px solid #2a1804;
+      box-shadow:0 0 0 1px #4a2808, 0 0 40px rgba(200,120,16,.25);
+      transition:box-shadow .3s,transform .3s;
+    }
+    .gif-cell:hover {
+      box-shadow:0 0 0 1px #8a5020, 0 0 80px rgba(200,120,16,.5);
+      transform:scale(1.015);
+    }
+    .gif-cell img {
+      display:block; width:100%;
+      image-rendering:pixelated; image-rendering:crisp-edges;
+    }
+    .gif-label {
+      position:absolute; bottom:0;left:0;right:0;
+      padding:40px 20px 16px;
+      background:linear-gradient(to top,rgba(5,3,3,.92) 0%,transparent 100%);
+      font-family:'Cinzel',serif; font-size:12px; letter-spacing:2px;
+      text-transform:uppercase; color:var(--ember-hi);
+    }
+
+    /* ════════════════════════════════════════════
+       SECTION 4 — ECONOMY
+    ════════════════════════════════════════════ */
+    .s4 {
+      background:linear-gradient(160deg,#080507 0%,#0c0904 100%);
+      border-top:1px solid var(--border);
+      min-height:80vh; display:flex; align-items:center;
+    }
+    .s4::before {
+      content:''; position:absolute; inset:0; pointer-events:none;
+      background:radial-gradient(ellipse 60% 60% at 50% 50%,rgba(200,120,16,.07) 0%,transparent 70%);
+    }
+    .s4-inner { text-align:center; max-width:800px; margin:0 auto; position:relative; z-index:1; }
+
+    .rf-eq {
+      font-family:'Cinzel',serif;
+      font-size:clamp(38px,8vw,96px); font-weight:700;
+      color:var(--ember-hi);
+      text-shadow:0 0 60px rgba(240,160,32,.6),0 0 120px rgba(200,120,16,.25);
+      display:block; margin:40px 0 52px; letter-spacing:2px;
+    }
+
+    .econ-grid {
+      display:grid; grid-template-columns:repeat(2,1fr); gap:16px;
+      margin-bottom:48px;
+    }
+    @media(max-width:640px){ .econ-grid{grid-template-columns:1fr;} }
+    .econ-card {
+      background:rgba(200,120,16,.06); border:1px solid var(--border);
+      border-radius:6px; padding:24px 20px;
+      display:flex; align-items:flex-start; gap:14px;
+      text-align:left; transition:border-color .2s,background .2s;
+    }
+    .econ-card:hover { border-color:var(--border-h); background:rgba(200,120,16,.1); }
+    .econ-icon {
+      font-size:28px; flex-shrink:0;
+      filter:drop-shadow(0 0 8px rgba(200,120,16,.4));
+    }
+    .econ-title {
+      font-family:'Cinzel',serif; font-size:12px; font-weight:600;
+      color:var(--ember-hi); letter-spacing:.8px; margin-bottom:6px;
+    }
+    .econ-desc { font-size:13px; color:var(--parch-muted); line-height:1.7; }
+
+    /* ════════════════════════════════════════════
+       STATS ROW (inside economy or intro)
+    ════════════════════════════════════════════ */
+    .stats-row {
+      display:flex; justify-content:center;
+      gap:64px; flex-wrap:wrap;
+    }
+    .stat { text-align:center; }
+    .stat-n {
+      font-family:'Cinzel',serif; font-size:clamp(28px,4vw,48px); font-weight:700;
+      color:var(--ember-hi);
+      text-shadow:0 0 30px rgba(240,160,32,.45);
+      display:block; margin-bottom:8px;
+    }
+    .stat-l {
+      font-family:'Cinzel',serif; font-size:9px; letter-spacing:2.5px;
+      text-transform:uppercase; color:var(--parch-muted);
+    }
+
+    /* ════════════════════════════════════════════
+       CTA
+    ════════════════════════════════════════════ */
+    .s-cta {
+      background:#060409;
+      border-top:1px solid var(--border);
+      padding:120px 0 140px;
+      text-align:center; position:relative; overflow:hidden;
+    }
+    .s-cta::before {
+      content:''; position:absolute; top:50%;left:50%;
+      transform:translate(-50%,-50%);
+      width:800px;height:600px;
+      background:radial-gradient(ellipse,rgba(200,120,16,.07) 0%,transparent 65%);
+      pointer-events:none;
+    }
+    .cta-logo {
+      height:160px;width:auto;margin:0 auto 52px;display:block;
+      filter:drop-shadow(0 0 40px rgba(200,120,16,.6)) drop-shadow(0 0 80px rgba(200,120,16,.2));
+    }
+    .cta-btns { display:flex;gap:16px;justify-content:center;flex-wrap:wrap;margin-top:44px; }
+
+    /* ════════════════════════════════════════════
+       FOOTER
+    ════════════════════════════════════════════ */
+    footer {
+      display:flex; align-items:center; justify-content:space-between;
+      padding:22px 56px; border-top:1px solid var(--border);
+      flex-wrap:wrap; gap:12px;
+      background:#040208;
+    }
+    @media(max-width:768px){ footer{padding:18px 20px;} }
+    footer span, footer a {
+      font-family:'Cinzel',serif; font-size:9px;
+      letter-spacing:1px; color:var(--parch-muted);
+      text-decoration:none; transition:color .2s;
+    }
+    footer a:hover { color:var(--ember-hi); }
+    .foot-links { display:flex;gap:24px; }
+  </style>
 </head>
 <body>
 
-  <canvas id="world"></canvas>
-  <div id="vignette"></div>
+<!-- ══════ NAVBAR ══════ -->
+<nav id="nav">
+  <a href="/" class="brand bfu" style="animation-delay:0ms">
+    <img src="Assets/Logo.png" alt="Tectine Empire">
+    <span class="brand-name">Tectine Empire</span>
+  </a>
 
-  <!-- Top HUD -->
-  <div id="hud-top">
-    <img src="Assets/Logo.png" class="hud-logo" alt="TEW">
-    <div class="empire-name">
-      Tectine Empire <span class="empire-abbr">TEW</span>
-      <small id="biome-label">Grassland</small>
-    </div>
-    <div class="hud-space"></div>
-    <select id="biome-sel" class="biome-sel">
-      <option value="normal">Grassland</option>
-      <option value="snow">Snow</option>
-    </select>
-    <button id="btn-edit" class="hud-btn">✦ Edit</button>
-    <button id="btn-done" class="hud-btn done" style="display:none">✔ Done</button>
+  <div class="nav-links">
+    <a href="#realm"    class="bfu" style="animation-delay:100ms">The Realm</a>
+    <a href="#forces"   class="bfu" style="animation-delay:150ms">Forces</a>
+    <a href="#world"    class="bfu" style="animation-delay:200ms">World</a>
+    <a href="#economy"  class="bfu" style="animation-delay:250ms">Economy</a>
   </div>
 
-  <!-- Edit panel -->
-  <div id="edit-panel">
-
-    <!-- How-to tips bar -->
-    <div id="edit-help">
-      <span class="help-tip">🖱 <b>Click</b> to place</span>
-      <span class="help-sep">·</span>
-      <span class="help-tip">✋ <b>Drag</b> placed item to move</span>
-      <span class="help-sep">·</span>
-      <span class="help-tip">✕ <b>Drag off-map</b> to delete</span>
-      <span class="help-sep">·</span>
-      <span class="help-tip">🗑 <b>Double-click</b> placed item to remove</span>
-      <span class="help-sep">·</span>
-      <span class="help-tip">⚓ Ship units need Water tiles</span>
-    </div>
-
-    <!-- Scrollable tile grid -->
-    <div id="tile-strip"></div>
-
-    <!-- Hover info bar -->
-    <div id="strip-info"></div>
-
-    <!-- Category tabs -->
-    <div id="cat-bar">
-      <button class="cat active" data-cat="objects">Objects</button>
-      <button class="cat"        data-cat="units">Units</button>
-      <div class="cat-space"></div>
-    </div>
-  </div>
-
-  <!-- Bottom action buttons (hidden in edit mode) -->
-  <div id="bottom-actions">
-    <button class="action-btn" id="btn-inventory">
-      <span class="action-icon">📦</span>
-      <span class="action-label">Inventory</span>
+  <div class="nav-right">
+    <button class="nav-search lg bfu" style="animation-delay:320ms">
+      <svg viewBox="0 0 24 24" width="16" height="16" stroke="#fff" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"/><path d="m21 21-4.35-4.35"/></svg>
+      Search
     </button>
-    <button class="action-btn" id="btn-store">
-      <span class="action-icon">🏪</span>
-      <span class="action-label">Store</span>
+    <button class="nav-user lg bfu" style="animation-delay:380ms">
+      <svg viewBox="0 0 24 24" width="17" height="17" stroke="#fff" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/></svg>
+    </button>
+    <button class="nav-ham lg bfu" style="animation-delay:320ms" id="ham" onclick="toggleMob()">
+      <svg id="hi" viewBox="0 0 24 24" width="20" height="20" stroke="#fff" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><line x1="3" y1="6" x2="21" y2="6"/><line x1="3" y1="12" x2="21" y2="12"/><line x1="3" y1="18" x2="21" y2="18"/></svg>
+      <svg id="xi" viewBox="0 0 24 24" width="20" height="20" stroke="#fff" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="display:none"><line x1="18" y1="6" x2="6" y2="18"/><line x1="6" y1="6" x2="18" y2="18"/></svg>
     </button>
   </div>
+</nav>
 
-  <!-- Selected tile preview -->
-  <div id="sel-preview">
-    <canvas id="prev-cvs" width="58" height="58"></canvas>
-    <span id="prev-name">Nothing selected</span>
-  </div>
+<div id="mob">
+  <a href="#realm"   class="mob-a" onclick="closeMob()">The Realm</a>
+  <a href="#forces"  class="mob-a" onclick="closeMob()">Forces</a>
+  <a href="#world"   class="mob-a" onclick="closeMob()">World</a>
+  <a href="#economy" class="mob-a" onclick="closeMob()">Economy</a>
+  <a href="/auth"    class="mob-a" onclick="closeMob()">Join the Empire</a>
+</div>
 
-  <!-- Floating map tooltip (hover over placed unit/object) -->
-  <div id="map-tooltip"></div>
+<!-- ══════ HERO — crisp video, gradient overlay ══════ -->
+<section class="hero">
+  <video autoplay muted loop playsinline>
+    <source src="Assets/Hero.mp4" type="video/mp4">
+  </video>
+  <div class="hero-overlay"></div>
 
-  <!-- Biome loading overlay -->
-  <div id="loading-overlay">
-    <div class="loading-inner">
-      <div class="loading-spinner"></div>
-      <div class="loading-text">Loading…</div>
+  <div class="hero-body">
+    <div class="hero-inner">
+      <div class="hero-left">
+
+        <div class="meta-row bfu" style="animation-delay:300ms">
+          <div class="meta-item">
+            <svg viewBox="0 0 24 24" fill="var(--ember-hi)"><path d="M12 2l3.09 6.26L22 9.27l-5 4.87 1.18 6.88L12 17.77l-6.18 3.25L7 14.14 2 9.27l6.91-1.01L12 2z"/></svg>
+            7,000+ Players
+          </div>
+          <div class="meta-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--ember)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="2" y="3" width="20" height="14" rx="2"/><line x1="8" y1="21" x2="16" y2="21"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+            10 Building Levels
+          </div>
+          <div class="meta-item">
+            <svg viewBox="0 0 24 24" fill="none" stroke="var(--ember)" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="4" width="18" height="18" rx="2"/><line x1="16" y1="2" x2="16" y2="6"/><line x1="8" y1="2" x2="8" y2="6"/><line x1="3" y1="10" x2="21" y2="10"/></svg>
+            Est. 2025
+          </div>
+        </div>
+
+        <h1 class="hero-h1 bfu" style="animation-delay:400ms">
+          Build. Command.<br>Conquer.
+        </h1>
+
+        <p class="hero-desc bfu" style="animation-delay:500ms">
+          A living world strategy RPG where your empire earns
+          real rewards. No download. Always saved.
+        </p>
+
+        <div class="hero-btns">
+          <a href="/auth" class="btn-white bfu" style="animation-delay:620ms" id="hero-play">
+            <svg viewBox="0 0 24 24" width="15" height="15"><path d="m5 3 14 9-14 9V3z" fill="#04020a"/></svg>
+            Start Playing
+          </a>
+          <a href="#realm" class="btn-glpill lg bfu" style="animation-delay:740ms">
+            Explore the Realm
+          </a>
+        </div>
+      </div>
+
+      <div class="hero-right">
+        <a href="/auth" class="btn-arrow lg bfu" style="animation-delay:860ms" id="nav-login">
+          <svg viewBox="0 0 24 24" width="16" height="16" stroke="#fff" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="15 18 9 12 15 6"/></svg>
+          Login
+        </a>
+        <a href="/auth" class="btn-arrow lg bfu" style="animation-delay:960ms" id="nav-play">
+          Play Now
+          <svg viewBox="0 0 24 24" width="16" height="16" stroke="#fff" fill="none" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="9 18 15 12 9 6"/></svg>
+        </a>
+      </div>
     </div>
   </div>
+</section>
 
-  <!-- Entity info panel (right side — shown on click in any mode) -->
-  <div id="entity-panel" class="entity-panel">
-    <div class="ep-preview-wrap">
-      <canvas id="ep-canvas" width="96" height="96"></canvas>
+<!-- ══════ S1 — THE REALM ══════ -->
+<section class="s1 section" id="realm">
+  <div class="container">
+    <div class="s1-inner">
+
+      <!-- GIF -->
+      <div class="rev">
+        <img src="Assets/Examples/1.gif" class="px-frame" alt="Tectine Empire World">
+      </div>
+
+      <!-- Text -->
+      <div>
+        <div class="orn rev" style="margin-bottom:28px">
+          <div class="orn-l"></div><div class="orn-g"></div><div class="orn-l"></div>
+        </div>
+        <span class="tag rev" style="transition-delay:.05s">The Realm</span>
+        <h2 class="heading-lg rev" style="transition-delay:.1s">Build a Living Empire</h2>
+        <p class="body-lg rev" style="transition-delay:.16s">
+          Lay the foundations of your civilization. Place buildings across your domain,
+          upgrade them through 10 tiers of power, and watch a living world grow under
+          your command.
+        </p>
+
+        <ul class="feat-list">
+          <li class="rev" style="transition-delay:.22s">
+            <span class="fi">🏰</span>
+            <div><strong>City Construction</strong>Place Family Houses, Banks, Dojos, Fields and more — each with unique roles in your empire's growth.</div>
+          </li>
+          <li class="rev" style="transition-delay:.3s">
+            <span class="fi">⚙️</span>
+            <div><strong>10-Level Upgrades</strong>Every building upgrades through 10 tiers — each level unlocking greater capacity, speed, and power.</div>
+          </li>
+          <li class="rev" style="transition-delay:.38s">
+            <span class="fi">💾</span>
+            <div><strong>Always Saved</strong>Your city syncs to your account. Resume on any device, any time — nothing is ever lost.</div>
+          </li>
+        </ul>
+      </div>
     </div>
-    <div id="ep-name" class="ep-name">—</div>
-    <div id="ep-type" class="ep-type">—</div>
-    <div id="ep-level" class="ep-level"></div>
-    <button id="ep-upgrade" class="ep-upgrade-btn" style="display:none">⬆ Upgrade</button>
-    <div class="ep-stats-placeholder">— stats coming soon —</div>
   </div>
+</section>
 
-  <script type="module" src="src/main.js"></script>
+<!-- ══════ S2 — COMMAND YOUR FORCES ══════ -->
+<section class="s2 section" id="forces">
+  <div class="container">
+    <div class="s2-inner">
+
+      <!-- Text -->
+      <div>
+        <div class="orn rev" style="margin-bottom:28px">
+          <div class="orn-l"></div><div class="orn-g"></div><div class="orn-l"></div>
+        </div>
+        <span class="tag rev" style="transition-delay:.05s">Your Army</span>
+        <h2 class="heading-lg rev" style="transition-delay:.1s">Command Your Forces</h2>
+        <p class="body-lg rev" style="transition-delay:.16s">
+          Deploy units across your territories. Assign workers to buildings, send scouts
+          to uncharted lands, and coordinate your army to defend what you've built.
+        </p>
+
+        <ul class="feat-list">
+          <li class="rev" style="transition-delay:.22s">
+            <span class="fi">👷</span>
+            <div><strong>Worker Assignment</strong>Assign units to buildings and watch productivity compound as your empire levels up.</div>
+          </li>
+          <li class="rev" style="transition-delay:.3s">
+            <span class="fi">⚔️</span>
+            <div><strong>Tactical Movement</strong>Move forces across a living map. Terrain, fog of war, and rivals stand between you and glory.</div>
+          </li>
+          <li class="rev" style="transition-delay:.38s">
+            <span class="fi">🛡️</span>
+            <div><strong>Defend Your Land</strong>Build walls and defensive structures. Every layer of defense protects your hard-earned Rufluxes.</div>
+          </li>
+        </ul>
+      </div>
+
+      <!-- GIF -->
+      <div class="s2-gif rev" style="transition-delay:.1s">
+        <img src="Assets/Examples/2.gif" class="px-frame" alt="Battle and Movement">
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════ S3 — WORLD PREVIEW (4 GIFs) ══════ -->
+<section class="s3" id="world">
+  <div class="container">
+    <div class="s3-head">
+      <div class="orn center rev" style="margin-bottom:28px">
+        <div class="orn-l"></div><div class="orn-g"></div><div class="orn-l"></div>
+      </div>
+      <span class="tag rev" style="transition-delay:.05s">The World</span>
+      <h2 class="heading-xl rev" style="transition-delay:.1s">Explore Every Biome</h2>
+      <p class="body-lg rev" style="transition-delay:.16s;max-width:560px;margin:0 auto">
+        From lush grasslands to scorched deserts and frozen tundras — the empire spans
+        a living world with unique challenges in every region.
+      </p>
+    </div>
+
+    <div class="gif-grid rev" style="transition-delay:.2s">
+      <div class="gif-cell">
+        <img src="Assets/Examples/1.gif" alt="Overworld">
+        <span class="gif-label">⚔ Overworld</span>
+      </div>
+      <div class="gif-cell">
+        <img src="Assets/Examples/2.gif" alt="Tactical Combat">
+        <span class="gif-label">🛡 Tactical Combat</span>
+      </div>
+      <div class="gif-cell">
+        <img src="Assets/Examples/3.gif" alt="Desert Biome">
+        <span class="gif-label">🏜 Desert Frontier</span>
+      </div>
+      <div class="gif-cell">
+        <img src="Assets/Examples/4.gif" alt="Verdant Fields">
+        <span class="gif-label">🌿 Verdant Fields</span>
+      </div>
+    </div>
+
+    <!-- Stats row below the grid -->
+    <div class="stats-row" style="margin-top:80px">
+      <div class="stat rev">
+        <span class="stat-n">7K+</span>
+        <span class="stat-l">Players</span>
+      </div>
+      <div class="stat rev" style="transition-delay:.08s">
+        <span class="stat-n">4</span>
+        <span class="stat-l">Biomes</span>
+      </div>
+      <div class="stat rev" style="transition-delay:.16s">
+        <span class="stat-n">10</span>
+        <span class="stat-l">Building Tiers</span>
+      </div>
+      <div class="stat rev" style="transition-delay:.24s">
+        <span class="stat-n">∞</span>
+        <span class="stat-l">Strategies</span>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════ S4 — ECONOMY ══════ -->
+<section class="s4 section" id="economy">
+  <div class="container">
+    <div class="s4-inner">
+      <div class="orn center rev" style="margin-bottom:28px">
+        <div class="orn-l"></div><div class="orn-g"></div><div class="orn-l"></div>
+      </div>
+      <span class="tag rev" style="transition-delay:.05s">The Ruflux System</span>
+      <h2 class="heading-xl rev" style="transition-delay:.1s">Play. Earn. Redeem.</h2>
+      <p class="body-lg rev" style="transition-delay:.16s;margin:0 auto">
+        Rufluxes are the empire's real currency. Earned in-game, redeemable for gift cards
+        and real rewards. The empire invests pooled funds — making you a stakeholder,
+        not just a player.
+      </p>
+
+      <span class="rf-eq rev" style="transition-delay:.24s">1,000 RF = $1.00</span>
+
+      <div class="econ-grid rev" style="transition-delay:.32s">
+        <div class="econ-card">
+          <span class="econ-icon">🎮</span>
+          <div>
+            <div class="econ-title">Daily Earnings</div>
+            <div class="econ-desc">Earn up to ~150 RF per day just by playing. Build more, earn more — your empire's size directly scales your income.</div>
+          </div>
+        </div>
+        <div class="econ-card">
+          <span class="econ-icon">📊</span>
+          <div>
+            <div class="econ-title">Dollar-Pegged Value</div>
+            <div class="econ-desc">RF tracks real dollar strength. When the dollar weakens, your RF holdings gain relative purchasing power.</div>
+          </div>
+        </div>
+        <div class="econ-card">
+          <span class="econ-icon">🎁</span>
+          <div>
+            <div class="econ-title">Real Redemptions</div>
+            <div class="econ-desc">Convert your RF into gift cards and real-world rewards. Your in-game progress has genuine economic value.</div>
+          </div>
+        </div>
+        <div class="econ-card">
+          <span class="econ-icon">🏦</span>
+          <div>
+            <div class="econ-title">Yield Deployment</div>
+            <div class="econ-desc">The empire actively deploys pooled funds as yield. You share in the empire's financial success as a stakeholder.</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- ══════ CTA ══════ -->
+<section class="s-cta">
+  <div class="container">
+    <img src="Assets/Logo.png" class="cta-logo rev" alt="Tectine Empire">
+    <h2 class="heading-xl rev" style="transition-delay:.1s">Ready to Rule?</h2>
+    <p class="body-lg rev" style="transition-delay:.18s;max-width:480px;margin:0 auto">
+      Free to start. No download. Your empire, your economy,
+      your legacy — waiting for you now.
+    </p>
+    <div class="cta-btns rev" style="transition-delay:.28s">
+      <a href="/auth" class="btn-ember" id="cta-play">⚔ &nbsp;Play for Free</a>
+      <a href="#realm" class="btn-ghost">Explore First</a>
+    </div>
+  </div>
+</section>
+
+<!-- ══════ FOOTER ══════ -->
+<footer>
+  <span>© 2025 Tectine Empire · Tectine Worlds · All rights reserved</span>
+  <div class="foot-links">
+    <a href="#">Privacy</a>
+    <a href="#">Terms</a>
+    <a href="#">Contact</a>
+  </div>
+</footer>
+
+<script>
+  function toggleMob(){
+    const m=document.getElementById('mob'),o=m.classList.toggle('open');
+    document.getElementById('hi').style.display=o?'none':'block';
+    document.getElementById('xi').style.display=o?'block':'none';
+  }
+  function closeMob(){
+    document.getElementById('mob').classList.remove('open');
+    document.getElementById('hi').style.display='block';
+    document.getElementById('xi').style.display='none';
+  }
+
+  // Navbar darkens on scroll
+  const nav=document.getElementById('nav');
+  window.addEventListener('scroll',()=>nav.classList.toggle('solid',scrollY>40),{passive:true});
+
+  // Scroll-reveal
+  const io=new IntersectionObserver(
+    es=>es.forEach(e=>e.isIntersecting&&e.target.classList.add('in')),
+    {threshold:0.07,rootMargin:'-30px'}
+  );
+  document.querySelectorAll('.rev').forEach(el=>io.observe(el));
+
+  // Auth swap
+  const tok=localStorage.getItem('tew_jwt');
+  if(tok){
+    [['nav-login','◀ Back','/game'],['nav-play','▶ Continue','/game'],
+     ['hero-play','▶ Continue Playing','/game'],['cta-play','▶ Continue Playing','/game']]
+    .forEach(([id,label,href])=>{
+      const el=document.getElementById(id);
+      if(el){el.textContent=label;el.href=href;}
+    });
+  }
+</script>
 </body>
 </html>

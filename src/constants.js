@@ -101,50 +101,24 @@ export const TILE_SECTIONS = [
     cardBg: '#1e1610',
     filter: (tx, ty) => isBuildingLvl1(tx, ty) },
 
-  { label: 'Buildings Lvl 2',
-    rowStart: 50, rowCount: 13, colCount: 23,
-    cardBg: '#1c1208', showInEdit: false,
-    filter: (tx, ty) => isBuildingLvl2(tx, ty) },
-
-  { label: 'Buildings Lvl 9',
-    rowStart: 50, rowCount: 13, colCount: 23,
-    cardBg: '#1a1008', showInEdit: false,
-    filter: (tx, ty) => isBuildingLvl9(tx, ty) },
-
-  { label: 'Buildings Lvl 3',
-    rowStart: 50, rowCount: 13, colCount: 23,
-    cardBg: '#20140c', showInEdit: false,
-    filter: (tx, ty) => isBuildingLvl3(tx, ty) },
-
-  { label: 'Buildings Lvl 4',
-    rowStart: 50, rowCount: 13, colCount: 23,
-    cardBg: '#241810', showInEdit: false,
-    filter: (tx, ty) => isBuildingLvl4(tx, ty) },
-
-  { label: 'Buildings Lvl 5',
-    rowStart: 50, rowCount: 13, colCount: 23,
-    cardBg: '#26180a', showInEdit: false,
-    filter: (tx, ty) => isBuildingLvl5(tx, ty) },
-
-  { label: 'Buildings Lvl 6',
-    rowStart: 50, rowCount: 13, colCount: 23,
-    cardBg: '#28180c', showInEdit: false,
-    filter: (tx, ty) => isBuildingLvl6(tx, ty) },
-
-  { label: 'Buildings Lvl 7',
-    rowStart: 50, rowCount: 13, colCount: 23,
-    cardBg: '#2c1c08', showInEdit: false,
-    filter: (tx, ty) => isBuildingLvl7(tx, ty) },
-
-  { label: 'Buildings Lvl 8',
-    rowStart: 50, rowCount: 13, colCount: 23,
-    cardBg: '#301e06', showInEdit: false,
-    filter: (tx, ty) => isBuildingLvl8(tx, ty) },
-
-  { label: 'Buildings Lvl 10',
-    rowStart: 50, rowCount: 13, colCount: 23,
-    cardBg: '#341e04', showInEdit: false,
-    filter: (tx, ty) => isBuildingLvl10(tx, ty) },
+  { label: 'Buildings Lvl 2',  rowStart: 50, rowCount: 13, colCount: 23,
+    cardBg: '#1c1208', showInEdit: false, filter: (tx, ty) => isBuildingLvl2(tx, ty) },
+  { label: 'Buildings Lvl 3',  rowStart: 50, rowCount: 13, colCount: 23,
+    cardBg: '#20140c', showInEdit: false, filter: (tx, ty) => isBuildingLvl3(tx, ty) },
+  { label: 'Buildings Lvl 4',  rowStart: 50, rowCount: 13, colCount: 23,
+    cardBg: '#241810', showInEdit: false, filter: (tx, ty) => isBuildingLvl4(tx, ty) },
+  { label: 'Buildings Lvl 5',  rowStart: 50, rowCount: 13, colCount: 23,
+    cardBg: '#26180a', showInEdit: false, filter: (tx, ty) => isBuildingLvl5(tx, ty) },
+  { label: 'Buildings Lvl 6',  rowStart: 50, rowCount: 13, colCount: 23,
+    cardBg: '#28180c', showInEdit: false, filter: (tx, ty) => isBuildingLvl6(tx, ty) },
+  { label: 'Buildings Lvl 7',  rowStart: 50, rowCount: 13, colCount: 23,
+    cardBg: '#2c1c08', showInEdit: false, filter: (tx, ty) => isBuildingLvl7(tx, ty) },
+  { label: 'Buildings Lvl 8',  rowStart: 50, rowCount: 13, colCount: 23,
+    cardBg: '#301e06', showInEdit: false, filter: (tx, ty) => isBuildingLvl8(tx, ty) },
+  { label: 'Buildings Lvl 9',  rowStart: 50, rowCount: 13, colCount: 23,
+    cardBg: '#1a1008', showInEdit: false, filter: (tx, ty) => isBuildingLvl9(tx, ty) },
+  { label: 'Buildings Lvl 10', rowStart: 50, rowCount: 13, colCount: 23,
+    cardBg: '#341e04', showInEdit: false, filter: (tx, ty) => isBuildingLvl10(tx, ty) },
 ];
 
 // Units that live exclusively on water object tiles.
@@ -335,7 +309,7 @@ export function isBuildingLvl10(tx, ty) {
 export const UNIT_NAMES = {
   Soldier:      ['Tectine Footman',  'Iron Shield Guard', 'Spear Sentinel',   'Bastion Defender',  'Gilded Vanguard',   'Templar Knight'],
   Archer:       ['Tectine Archer',   'Longbow Ranger',    'Forest Scout',      'Hawk Sniper',       'Eagle Eye',         'Imperial Crossbow'],
-  Vanguard:     ['Blade Vanguard',   'Dual Sword Elite',  'War Dancer',        'Storm Striker',     'Berserker',         'Warlord Champion'],
+  Vanguard:     ['Fire Apprentice',  'Ice Conjurer',      'Storm Weaver',      'Shadow Mage',       'Arcane Sorcerer',   'Grand Wizard'],
   Sapper:       ['Field Engineer',   'Siege Sapper',      'Mine Layer',        'Wall Breaker',      'Bomb Specialist',   'Grand Engineer'],
   Healer:       ['Battle Medic',     'Holy Cleric',       'Grove Shaman',      'Forest Druid',      'Temple Healer',     'Arch Paladin'],
   Scout:        ['Swift Scout',      'Shadow Spy',        'Path Finder',       'Night Stalker',     'Phantom Ranger',    'Void Infiltrator'],
@@ -572,66 +546,63 @@ export function getObjectDisplayName(tx, ty) {
     return `${DEEP[(ty - 28) % DEEP.length]} ${tx + 1}`;
   }
 
-  // Rows 33-40: Wall Lvl 2, Wall Lvl 1, Wall Lvl 5, gem decorations, and nature
+  // Rows 33-40: nature/wall section — chain-consistent names (same name at every level)
   if (ty >= 33 && ty <= 40) {
     const ROW = String.fromCharCode(65 + (ty - 33)); // A-H
 
-    // Wall Lvl 5 — rows A-F (ty 33-38), tx 5-11; naming tx-4 gives 1-7
-    if (isWallLvl5Tile(tx, ty)) return `Wall Lvl 5 ${ROW}-${tx - 4}`;
-
-    // Wall Lvl 8 — rows A-D tx 12-17 (variant tx-11 → 1-6); rows E-F tx 10-14 (variant tx-9 → 1-5)
-    if (isWallLvl8Tile(tx, ty)) return `Wall Lvl 8 ${ROW}-${ty <= 36 ? tx - 11 : tx - 9}`;
-
-    // Wall Lvl 2 blocks — rows A-F (ty 33-38), tx 0-4
-    if (ty < 39 && tx <= 4) return `Wall Lvl 2 ${ROW}-${tx + 1}`;
-    // Wall Lvl 2 gate/arch — tx=5 in rows A-D (ty 33-36)
-    if (tx === 5 && ty <= 36) return `Wall Lvl 2 Gate ${ROW}`;
-
-    // Wall Lvl 1 — right side of rows A-D (tx 24-29, ty 33-36)
-    if (tx >= 24 && tx <= 29 && ty <= 36) return `Wall Lvl 1 ${ROW}-${tx - 23}`;
-    // Wall Lvl 1 — rows G-H (tx 5-9, ty 39-40) — formerly mislabeled Pine Tree
-    if (tx >= 5 && tx <= 9 && ty >= 39) return `Wall Lvl 1 ${ROW}-${tx - 4}`;
-
-    // Wall Lvl 10 — all remaining nature-row tiles (Willow Grove, Stone Boulder,
-    // Thornbush, Crimson Gem, sparse Birch/Pine rows E-H, etc.)
-    return `Wall Lvl 10 ${ROW}-${tx + 1}`;
+    // Lvl 5 (tx=6-11 rows A-D; tx=5,7 sparse E; tx=5-9 sparse F)
+    if (isWallLvl5Tile(tx, ty)) {
+      if (ty <= 36) return tx === 11 ? `Wall ${ROW} Gate` : `Wall ${ROW}-${tx - 5}`;
+      return `Wall ${ROW}-${tx - 4}`; // sparse E/F
+    }
+    // Lvl 8 (tx=12-17 rows A-D; tx=10,12 sparse E; tx=10-14 sparse F)
+    if (isWallLvl8Tile(tx, ty)) {
+      if (ty <= 36) return tx === 17 ? `Wall ${ROW} Gate` : `Wall ${ROW}-${tx - 11}`;
+      return `Wall ${ROW}-${tx - 9}`; // sparse E/F
+    }
+    // Lvl 2 blocks (tx=0-4, rows A-F)
+    if (ty < 39 && tx <= 4) return `Wall ${ROW}-${tx + 1}`;
+    // Lvl 2 Gate (tx=5, rows A-D)
+    if (tx === 5 && ty <= 36) return `Wall ${ROW} Gate`;
+    // Lvl 1 (tx=24-29, rows A-D)
+    if (tx >= 24 && tx <= 29 && ty <= 36)
+      return tx === 29 ? `Wall ${ROW} Gate` : `Wall ${ROW}-${tx - 23}`;
+    // Lvl 1 sparse G/H (tx=5-9, rows G-H)
+    if (tx >= 5 && tx <= 9 && ty >= 39) return `Wall ${ROW}-${tx - 4}`;
+    // Lvl 10 main (tx=18-23, rows A-D)
+    if (tx >= 18 && tx <= 22 && ty <= 36) return `Wall ${ROW}-${tx - 17}`;
+    if (tx === 23 && ty <= 36) return `Wall ${ROW} Gate`;
+    // Lvl 10 catch-all (decorative/remaining nature tiles)
+    return `Wall ${ROW}-${tx + 1}`;
   }
 
   // Structure tiles (rows 41-48)
   if (ty >= 41 && ty <= 48) {
     const ROW = String.fromCharCode(65 + (ty - 41)); // A-H
 
-    // Wall Lvl 9 — rows A-D tx 18-23 (I-L, variant 1-6); rows G-H tx 0-4 (O-P, variant 1-5)
+    // Lvl 9 (tx=18-23 rows A-D; tx=0,2 sparse G; tx=0-4 sparse H) — use ROW=ty-41
     if (isWallLvl9Tile(tx, ty)) {
-      const ROW9 = String.fromCharCode(65 + (ty - 33));
-      if (ty <= 44) return `Wall Lvl 9 ${ROW9}-${tx - 17}`;
-      return `Wall Lvl 9 ${ROW9}-${tx + 1}`;
+      if (ty <= 44) return tx === 23 ? `Wall ${ROW} Gate` : `Wall ${ROW}-${tx - 17}`;
+      return `Wall ${ROW}-${tx + 1}`; // sparse G/H
     }
-
-    // Wall Lvl 4 — structure rows A-F (ty 41-46), tx 5-11
-    // Uses ty-33 offset for letter (I-N) to avoid clash with Lvl 3 names (A-H)
+    // Lvl 4 (tx=6-11 rows A-D; tx=5,7 sparse E; tx=5-9 sparse F) — use ROW=ty-41, variant tx-5
     if (isWallLvl4Tile(tx, ty)) {
-      const ROW4 = String.fromCharCode(65 + (ty - 33));
-      return `Wall Lvl 4 ${ROW4}-${tx - 4}`;
+      if (ty <= 44) return tx === 11 ? `Wall ${ROW} Gate` : `Wall ${ROW}-${tx - 5}`;
+      return `Wall ${ROW}-${tx - 4}`; // sparse E/F
     }
-
-    // Wall Lvl 6 — ty=41-44 tx=24-29 (I-L, variant 1-6); ty=47-48 tx=5-9 (O-P, variant 1-5)
+    // Lvl 6 (tx=24-29 rows A-D; tx=5,7 sparse G; tx=5-9 sparse H) — use ROW=ty-41
     if (isWallLvl6Tile(tx, ty)) {
-      const ROW5 = String.fromCharCode(65 + (ty - 33));
-      if (ty <= 44) return `Wall Lvl 6 ${ROW5}-${tx - 23}`;
-      return `Wall Lvl 6 ${ROW5}-${tx - 4}`;
+      if (ty <= 44) return tx === 29 ? `Wall ${ROW} Gate` : `Wall ${ROW}-${tx - 23}`;
+      return `Wall ${ROW}-${tx - 4}`; // sparse G/H
     }
-
-    // Wall Lvl 7 — ty=41-44 tx=12-17 (I-L, variant 1-6); ty=45-46 tx=10-14 (M-N, variant 1-5)
+    // Lvl 7 (tx=12-17 rows A-D; tx=10,12 sparse E; tx=10-14 sparse F) — use ROW=ty-41
     if (isWallLvl7Tile(tx, ty)) {
-      const ROW6 = String.fromCharCode(65 + (ty - 33));
-      if (ty <= 44) return `Wall Lvl 7 ${ROW6}-${tx - 11}`;
-      return `Wall Lvl 7 ${ROW6}-${tx - 9}`;
+      if (ty <= 44) return tx === 17 ? `Wall ${ROW} Gate` : `Wall ${ROW}-${tx - 11}`;
+      return `Wall ${ROW}-${tx - 9}`; // sparse E/F
     }
-
-    // Wall Lvl 3: Stone Wall (tx=0-4) rows A-F, Wooden Fence (tx=5) rows A-D
-    if (tx <= 4 && ty <= 46) return `Wall Lvl 3 ${ROW}-${tx + 1}`;
-    if (tx === 5 && ty <= 44) return `Wall Lvl 3 Gate ${ROW}`;
+    // Lvl 3 blocks (tx=0-4 rows A-F); Gate (tx=5 rows A-D)
+    if (tx <= 4 && ty <= 46) return `Wall ${ROW}-${tx + 1}`;
+    if (tx === 5 && ty <= 44) return `Wall ${ROW} Gate`;
 
     // Remaining structure tiles
     const GROUPS = [
@@ -646,20 +617,38 @@ export function getObjectDisplayName(tx, ty) {
     return `${g.base} ${ROW}${tx - g.off + 1}`;
   }
 
-  // Buildings (rows 50-62) — Lvl 1, Lvl 3, Lvl 4 lookups first, then generic Lvl 2
+  // Buildings (rows 50-62) — chain-consistent names (same name at every level)
   if (ty >= 50 && ty <= 62) {
-    const key = `${tx},${ty}`;
-    if (_BLDG_LVL1[key]) return _BLDG_LVL1[key];
-    if (_BLDG_LVL2[key]) return _BLDG_LVL2[key];
-    if (_BLDG_LVL3[key]) return _BLDG_LVL3[key];
-    if (_BLDG_LVL4[key]) return _BLDG_LVL4[key];
-    if (_BLDG_LVL5[key]) return _BLDG_LVL5[key];
-    if (_BLDG_LVL6[key]) return _BLDG_LVL6[key];
-    if (_BLDG_LVL7[key]) return _BLDG_LVL7[key];
-    if (_BLDG_LVL8[key]) return _BLDG_LVL8[key];
-    if (_BLDG_LVL9[key]) return _BLDG_LVL9[key];
-    if (_BLDG_LVL10[key]) return _BLDG_LVL10[key];
-    const ROW = String.fromCharCode(65 + (ty - 50)); // A-M
+    // Stronghold chain tx values (Lvl1→2→3 Barracks→4→5→6→7→8→9→10)
+    const STRONGHOLD_TX = new Set([4, 0, 6, 1, 10, 9, 2, 8, 7, 3]);
+    // Watchtower chain tx values (Lvl1→2→3 Market→4→5→6→7→8→9→10)
+    const WATCHTOWER_TX = new Set([16, 12, 18, 13, 22, 21, 14, 20, 19, 15]);
+    if (STRONGHOLD_TX.has(tx)) {
+      const n = {
+        50: 'Family House',   // capacity/banking hub for assigned units
+        52: 'Bank',           // connects up to 10 Family Houses; grows interest per upgrade
+        54: 'Dojo',           // training building for assigned units
+        56: 'Villagers Hut',  // base housing for villager units
+        58: 'Windmill',       // converts Fields Land output → food resources for Farmers Market
+        60: 'Farmers Market', // sells resources to households; sourced from Fields Land
+        62: 'Ore Refiner',    // refines mine output → Rufluxes per day/week/month
+      };
+      return n[ty] ?? `Building ${ty}`;
+    }
+    if (WATCHTOWER_TX.has(tx)) {
+      if (ty === 58) return "Dragon's Incubator Top";
+      if (ty === 59) return "Dragon's Incubator Bot";
+      if (ty === 61) return 'Townhall Top';
+      if (ty === 62) return 'Townhall Bot';
+      const n = {
+        50: 'Fields Land',      // base farmland; workers produce resources
+        52: 'Water Springs',    // heals units assigned from Family Houses
+        54: 'Gold Mine',        // produces gold/ore; feeds Ore Refiner
+        56: 'Abandoned Mine',   // placeholder mine (inactive for now)
+      };
+      return n[ty] ?? `Land ${ty}`;
+    }
+    const ROW = String.fromCharCode(65 + (ty - 50));
     if (tx <= 4)  return `Stronghold ${ROW}-${tx + 1}`;
     if (tx <= 10) return `Barracks ${ROW}-${tx - 5}`;
     if (tx <= 16) return `Watchtower ${ROW}-${tx - 11}`;
@@ -668,6 +657,67 @@ export function getObjectDisplayName(tx, ty) {
   }
 
   return `Object-${tx}-${ty}`;
+}
+
+// tx values for each named building chain.
+const _FAMILY_HOUSE_TX = new Set([4, 0, 6, 1, 10, 9, 2, 8, 7, 3]);
+const _WATCHTOWER_TX   = new Set([16, 12, 18, 13, 22, 21, 14, 20, 19, 15]);
+
+const WATCHTOWER_MAX_WORKERS = 4;
+
+/**
+ * Returns the capacity (number of units/workers) for a building tile,
+ * or null if the building has no defined capacity.
+ * Enforcement logic will be wired later.
+ */
+export function getObjectCapacity(tx, ty) {
+  if (ty === 50) {
+    const lvl = getObjectLevel(tx, ty) ?? 1;
+    if (_FAMILY_HOUSE_TX.has(tx)) return lvl; // Lvl1=1, Lvl2=2, ...
+    if (_WATCHTOWER_TX.has(tx))   return Math.min(lvl, WATCHTOWER_MAX_WORKERS);
+  }
+  if (ty === 56 && _FAMILY_HOUSE_TX.has(tx)) {
+    return getObjectLevel(tx, ty) ?? 1; // Villagers Hut: Lvl1=1, Lvl2=2, ...
+  }
+  return null;
+}
+
+/**
+ * Returns the label used for the capacity slot (e.g. "units", "workers").
+ */
+export function getObjectCapacityLabel(tx, ty) {
+  if (ty === 50 && _WATCHTOWER_TX.has(tx)) return 'workers';
+  if (ty === 56) return 'villagers';
+  return 'units';
+}
+
+const FIELDS_LAND_SPEED_BASE_LVL  = 4;  // speed bonus starts at this level
+const FIELDS_LAND_SPEED_PER_LVL   = 10; // +10% work speed per level from lvl 4
+const FIELDS_LAND_PROD_PER_LVL    = 10; // +10% resource production per level (all levels)
+
+/**
+ * Returns the work-speed bonus percentage for a Fields Land tile at lvl ≥ 4,
+ * or null if no speed bonus applies. Enforcement wired later.
+ */
+export function getObjectSpeedBonus(tx, ty) {
+  if (ty === 50 && _WATCHTOWER_TX.has(tx)) {
+    const lvl = getObjectLevel(tx, ty) ?? 1;
+    if (lvl >= FIELDS_LAND_SPEED_BASE_LVL)
+      return (lvl - FIELDS_LAND_SPEED_BASE_LVL + 1) * FIELDS_LAND_SPEED_PER_LVL;
+  }
+  return null;
+}
+
+/**
+ * Returns the resource-production bonus percentage for a Fields Land tile
+ * at any level (+10% × level). Only applies to the ty=50 (Fields Land) row.
+ */
+export function getObjectProductionBonus(tx, ty) {
+  if (ty === 50 && _WATCHTOWER_TX.has(tx)) {
+    const lvl = getObjectLevel(tx, ty) ?? 1;
+    return lvl * FIELDS_LAND_PROD_PER_LVL;
+  }
+  return null;
 }
 
 export const CHAR_TYPES = [
@@ -689,7 +739,7 @@ export const CHAR_COLORS_BY_TYPE = {
 export const CHAR_TYPE_LABELS = {
   Soldier:      'Soldiers',
   Archer:       'Archers',
-  Vanguard:     'Vanguard',
+  Vanguard:     'Magicians',
   Sapper:       'Sappers',
   Healer:       'Healers',
   Scout:        'Scouts',
@@ -852,18 +902,20 @@ function _buildUpgradeMap() {
   // Building rows (single-tile and 2-tile tops share the same tx upgrade chain)
   const BLDG_ROWS = [50, 52, 54, 56, 58, 60, 61, 62];
   for (const ty of BLDG_ROWS) {
-    // Stronghold: Lvl1(4)→Lvl2(0)→Lvl4(1)→Lvl7(2)→Lvl10(3)
-    m.set(`4,${ty}`,  {tx:0,  ty}); m.set(`0,${ty}`,  {tx:1, ty});
-    m.set(`1,${ty}`,  {tx:2,  ty}); m.set(`2,${ty}`,  {tx:3, ty});
-    // Watchtower: Lvl1(16)→Lvl2(12)→Lvl4(13)→Lvl7(14)→Lvl10(15)
-    m.set(`16,${ty}`, {tx:12, ty}); m.set(`12,${ty}`, {tx:13, ty});
-    m.set(`13,${ty}`, {tx:14, ty}); m.set(`14,${ty}`, {tx:15, ty});
-    // Barracks: Lvl3(6)→Lvl5(10)→Lvl6(9)→Lvl8(8)→Lvl9(7)
-    m.set(`6,${ty}`,  {tx:10, ty}); m.set(`10,${ty}`, {tx:9,  ty});
-    m.set(`9,${ty}`,  {tx:8,  ty}); m.set(`8,${ty}`,  {tx:7,  ty});
-    // Grand Market: Lvl3(18)→Lvl5(22)→Lvl6(21)→Lvl8(20)→Lvl9(19)
-    m.set(`18,${ty}`, {tx:22, ty}); m.set(`22,${ty}`, {tx:21, ty});
-    m.set(`21,${ty}`, {tx:20, ty}); m.set(`20,${ty}`, {tx:19, ty});
+    // Stronghold: Lvl1(4)→Lvl2(0)→Lvl3 Barracks(6)→ then continues Barracks chain
+    m.set(`4,${ty}`,  {tx:0, ty}); m.set(`0,${ty}`, {tx:6, ty});
+    // Watchtower: Lvl1(16)→Lvl2(12)→Lvl3 Market(18)→ then continues Market chain
+    m.set(`16,${ty}`, {tx:12, ty}); m.set(`12,${ty}`, {tx:18, ty});
+    // Barracks: Lvl3(6)→Lvl4 Stronghold(1)→Lvl5(10)→Lvl6(9)→Lvl7 Stronghold(2)→Lvl8(8)→Lvl9(7)→Lvl10 Stronghold(3)
+    m.set(`6,${ty}`,  {tx:1,  ty}); m.set(`1,${ty}`,  {tx:10, ty});
+    m.set(`10,${ty}`, {tx:9,  ty}); m.set(`9,${ty}`,  {tx:2,  ty});
+    m.set(`2,${ty}`,  {tx:8,  ty}); m.set(`8,${ty}`,  {tx:7,  ty});
+    m.set(`7,${ty}`,  {tx:3,  ty});
+    // Grand Market: Lvl3(18)→Lvl4 Watchtower(13)→Lvl5(22)→Lvl6(21)→Lvl7 Watchtower(14)→Lvl8(20)→Lvl9(19)→Lvl10 Watchtower(15)
+    m.set(`18,${ty}`, {tx:13, ty}); m.set(`13,${ty}`, {tx:22, ty});
+    m.set(`22,${ty}`, {tx:21, ty}); m.set(`21,${ty}`, {tx:14, ty});
+    m.set(`14,${ty}`, {tx:20, ty}); m.set(`20,${ty}`, {tx:19, ty});
+    m.set(`19,${ty}`, {tx:15, ty});
   }
   return m;
 }
@@ -894,5 +946,77 @@ export function getObjectLevel(tx, ty) {
   return null;
 }
 
+// ── Unit stats per color index [atk, def, spd, spAtk, spDef] ────────────
+export const UNIT_STATS = {
+  Soldier:     [[12,10,5,3,8],[10,14,4,3,12],[14,8,6,4,6],[8,18,3,2,15],[15,12,7,6,10],[16,16,5,8,14]],
+  Archer:      [[10,5,8,14,5],[11,5,9,16,5],[12,4,10,17,4],[13,6,10,18,6],[14,6,11,20,6],[15,8,10,22,8]],
+  Vanguard:    [[8,4,6,16,8],[8,5,6,18,9],[10,5,7,20,10],[9,6,6,22,12],[10,7,7,24,14],[12,8,6,28,16]],
+  Sapper:      [[10,6,7,8,4],[11,7,7,10,5],[12,8,7,12,5],[13,9,6,14,6],[14,10,6,16,7],[16,12,6,18,8]],
+  Healer:      [[2,8,5,12,14],[2,9,5,14,16],[2,10,5,16,18],[3,11,5,18,20],[3,12,5,20,22],[4,14,5,24,26]],
+  Scout:       [[8,4,14,10,4],[9,4,15,11,4],[10,5,16,12,5],[10,5,17,13,5],[11,6,18,14,6],[12,6,20,16,6]],
+  Siege:       [[18,4,2,8,3],[20,5,2,10,3],[22,6,2,12,4],[24,7,2,14,4],[26,8,2,16,5],[30,10,2,18,5]],
+  Ram:         [[20,6,3,4,4],[22,7,3,4,5],[24,8,3,4,5],[26,9,3,4,6],[28,10,3,4,6],[32,12,3,4,7]],
+  Beast:       [[20,12,10,18,10],[18,14,10,20,12],[22,10,12,22,10],[24,14,10,20,14],[26,14,10,22,14],[30,18,10,28,18]],
+  BeastRider:  [[16,10,11,14,8],[17,11,11,15,9],[18,12,11,16,10],[20,12,12,18,10],[22,14,12,20,12],[26,16,12,22,14]],
+  Elemental:   [[25,20,8,30,25],[24,22,8,32,26],[26,18,10,34,22],[28,24,8,36,28]],
+  Acolyte:     [[4,6,7,10,10],[4,7,7,12,12],[4,7,8,14,14],[5,8,8,16,16],[5,9,8,18,18],[6,10,8,20,20]],
+  Villager:    [[2,3,6,1,3],[4,4,5,2,4],[3,3,7,2,3],[4,5,5,3,5],[3,4,8,2,4],[5,5,6,4,6]],
+  Battleship:  [[18,12,4,14,10],[20,14,4,16,12],[22,16,4,18,14],[24,18,4,20,16],[26,20,4,22,18],[30,24,4,26,22]],
+  Frigate:     [[14,8,8,12,8],[16,9,9,14,9],[18,10,10,16,10],[20,11,10,18,11],[22,12,11,20,12],[26,14,12,24,14]],
+  FishingBoat: [[2,4,10,2,4],[2,5,11,2,5],[3,5,12,3,5],[3,6,12,3,6],[4,6,13,4,6],[4,7,14,4,7]],
+  TransportShip:[[4,10,6,3,8],[4,12,6,3,10],[5,14,6,4,12],[5,16,6,4,14],[6,18,6,5,16],[8,22,6,6,20]],
+};
+
+export const RANGED_UNITS_SET  = new Set(['Archer','Vanguard','Scout','Siege','Acolyte','Healer','Battleship','Frigate']);
+export const HYBRID_UNITS_SET  = new Set(['Beast','BeastRider','Elemental']);
+
 // Bump whenever the saved-world schema changes
 export const STORAGE_KEY = 'seWorld_v4';
+
+// ── Unit recruit prices per color index (0=Lvl1 … 5=Lvl6) ──────────────
+export const UNIT_RECRUIT_PRICES = {
+  Soldier:      [150, 180, 200, 250, 250, 250],
+  Archer:       [100, 120, 140, 160, 180, 200],
+  Vanguard:     [120, 150, 180, 220, 260, 300],
+  Sapper:       [150, 180, 200, 230, 260, 300],
+  Healer:       [180, 200, 230, 260, 290, 320],
+  Scout:        [100, 120, 140, 165, 190, 220],
+  Siege:        [450, 480, 500, 530, 560, 600],
+  Ram:          [380, 400, 430, 460, 490, 520],
+  Beast:        [1600, 1700, 1800, 1900, 2000, 2100],
+  BeastRider:   [1300, 1400, 1500, 1600, 1700, 1800],
+  Elemental:    [2000, 2100, 2200, 2300],
+  Acolyte:      [250, 280, 310, 350, 390, 430],
+  Villager:     [80,  90,  100, 110, 120, 130],
+  Battleship:   [900, 1000, 1100, 1200, 1300, 1400],
+  Frigate:      [650,  750,  850,  950, 1050, 1150],
+  FishingBoat:  [150,  170,  190,  210,  230,  250],
+  TransportShip:[400,  450,  500,  550,  600,  650],
+};
+
+// ── Family House capacity cost per unit per color index ─────────────────
+export const UNIT_CAPACITY_COST = {
+  Soldier:      [2, 2, 2, 3, 3, 3],
+  Archer:       [1, 1, 1, 2, 2, 2],
+  Vanguard:     [1, 1, 2, 2, 2, 3],
+  Sapper:       [1, 2, 2, 2, 3, 3],
+  Healer:       [1, 1, 1, 2, 2, 3],
+  Scout:        [1, 1, 1, 1, 2, 2],
+  Siege:        [2, 3, 3, 4, 4, 5],
+  Ram:          [2, 2, 3, 3, 4, 4],
+  Beast:        [3, 3, 4, 4, 5, 6],
+  BeastRider:   [2, 3, 3, 4, 4, 5],
+  Elemental:    [3, 3, 4, 4],
+  Acolyte:      [1, 1, 1, 2, 2, 2],
+  Villager:     [1, 1, 1, 1, 2, 2],
+  Battleship:   [3, 3, 4, 4, 5, 5],
+  Frigate:      [2, 2, 3, 3, 4, 4],
+  FishingBoat:  [1, 1, 1, 2, 2, 2],
+  TransportShip:[2, 2, 2, 3, 3, 3],
+};
+
+// ── Unit category restrictions ───────────────────────────────────────────
+export const LOCKED_UNITS        = new Set(['Elemental']);            // only via special events
+export const VILLAGER_ONLY_UNITS = new Set(['Villager']);             // recruited from Villagers Hut
+export const MINE_ONLY_UNITS     = new Set(['FishingBoat', 'TransportShip']); // from Abandoned Mine
+export const NAVAL_RECRUIT_UNITS = new Set(['Battleship', 'Frigate']); // require water on map

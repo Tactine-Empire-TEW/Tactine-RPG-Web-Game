@@ -18,7 +18,9 @@ import { WATER_UNITS, FLYING_UNITS, BLDG_TOP_BOT_PAIRS, BLDG_BOT_KEYS, isWaterTi
 const DRAG_THRESHOLD  = 8;   // pixels
 const DBLCLICK_MS     = 350; // max ms between clicks to count as double-click
 
-export function setupInput({ canvas, camera, world, editPanel, getEditMode, onPick, onClear }) {
+export function setupInput({ canvas, camera, world, editPanel, getEditMode, onPick, onClear, beforePlace, afterPlace, onRemoved }) {
+  // Townhall tiles are permanent — never removable
+  const _isTownhall = (tx, ty) => tx === 16 && (ty === 61 || ty === 62);
   const state = {
     hoverScreen: null,   // { x, y } current mouse position (screen)
     dragUnit:    null,   // full unit object while dragging a unit
@@ -67,14 +69,20 @@ export function setupInput({ canvas, camera, world, editPanel, getEditMode, onPi
     const sel = editPanel.selected;
     if (!sel) return;
 
+    // Inventory quantity gate
+    if (beforePlace && !beforePlace(sel)) return;
+
     if (sel.kind === 'object') {
-      _clearForPlacement(col, row);
-      if (sel.bot) _clearForPlacement(col, row + 1);
+      // Block placement if target cell (or bottom cell of 2-tile) is already occupied
+      if (world.hasObject(col, row)) return;
+      if (sel.bot && world.hasObject(col, row + 1)) return;
       world.placeObject(col, row, { tx: sel.tx, ty: sel.ty });
       if (sel.bot) world.placeObject(col, row + 1, sel.bot);
+      if (afterPlace) afterPlace(sel);
     } else if (sel.kind === 'unit') {
       if (_isValidUnitPlacement(sel.type, col, row)) {
         world.placeUnit(col, row, sel.type, sel.color);
+        if (afterPlace) afterPlace(sel);
       }
     }
   }
@@ -89,15 +97,34 @@ export function setupInput({ canvas, camera, world, editPanel, getEditMode, onPi
     world.removeObjectAt(col, row);
   }
 
-  // Removes an object and its paired partner (Top↔Bot) if applicable.
+  // Removes an object/unit and its paired partner; Townhall is indestructible.
+  // Fires onRemoved so the inventory can reclaim the item.
   function _removeWithPair(col, row) {
+    let removed = null;
+
     const o = world.getObject(col, row);
     if (o) {
+      if (_isTownhall(o.tx, o.ty)) return; // Townhall: permanent
       const key = `${o.tx},${o.ty}`;
-      if (BLDG_TOP_BOT_PAIRS.has(key))  world.removeObjectAt(col, row + 1); // remove Bot
-      else if (BLDG_BOT_KEYS.has(key))  world.removeObjectAt(col, row - 1); // remove Top
+      removed = { type: 'object', tx: o.tx, ty: o.ty };
+
+      if (BLDG_TOP_BOT_PAIRS.has(key)) {
+        removed.bot = BLDG_TOP_BOT_PAIRS.get(key);
+        world.removeObjectAt(col, row + 1);
+      } else if (BLDG_BOT_KEYS.has(key)) {
+        // Clicked the bot half — use the top tile as canonical reference
+        const topO = world.getObject(col, row - 1);
+        if (!topO || _isTownhall(topO.tx, topO.ty)) return;
+        removed = { type: 'object', tx: topO.tx, ty: topO.ty, bot: { tx: o.tx, ty: o.ty } };
+        world.removeObjectAt(col, row - 1);
+      }
+    } else {
+      const u = world.findUnitNear(col, row);
+      if (u) removed = { type: 'unit', unitType: u.unit.type, color: u.unit.color };
     }
+
     world.removeAt(col, row);
+    if (removed && onRemoved) onRemoved(removed);
   }
 
   function _tryStartDrag(col, row) {
@@ -112,9 +139,10 @@ export function setupInput({ canvas, camera, world, editPanel, getEditMode, onPi
       canvas.style.cursor = 'grabbing';
       return true;
     }
-    // Object drag: edit AND play mode — water tiles are locked in play mode
+    // Object drag: edit AND play mode — water tiles locked in play mode, Townhall never dragged
     const o = world.getObject(col, row);
     if (o) {
+      if (_isTownhall(o.tx, o.ty)) return false;
       if (!getEditMode() && isWaterTileCoord(o.ty)) return false;
       const key = `${o.tx},${o.ty}`;
       // If this is the bottom half of a 2-tile building, pick up from the top tile
@@ -156,22 +184,35 @@ export function setupInput({ canvas, camera, world, editPanel, getEditMode, onPi
       if (inMap && _isValidUnitPlacement(u.type, col, row)) {
         world.placeUnitData(col, row, u);
       } else if (inMap) {
-        world.placeUnitData(_fromCol, _fromRow, u);  // restore
+        world.placeUnitData(_fromCol, _fromRow, u); // restore
+      } else {
+        // Off-map → return to inventory instead of deleting
+        if (onRemoved) onRemoved({ type: 'unit', unitType: u.type, color: u.color });
       }
-      // Off-map → deleted
       state.dragUnit = null;
-
     }
 
     if (state.dragObject) {
-      if (inMap) {
-        _clearForPlacement(col, row);
-        if (state.dragObject.bot) _clearForPlacement(col, row + 1);
-        world.placeObject(col, row, state.dragObject);
-        if (state.dragObject.bot) world.placeObject(col, row + 1, state.dragObject.bot);
+      const dobj     = state.dragObject;
+      const occupied = world.hasObject(col, row) ||
+        (dobj.bot && world.hasObject(col, row + 1));
+      if (inMap && !occupied) {
+        world.placeObject(col, row, dobj);
+        if (dobj.bot) world.placeObject(col, row + 1, dobj.bot);
+      } else if (inMap) {
+        // Target occupied — restore to original position
+        world.placeObject(_fromCol, _fromRow, dobj);
+        if (dobj.bot) world.placeObject(_fromCol, _fromRow + 1, dobj.bot);
+      } else {
+        // Off-map: Townhall snaps back; everything else returns to inventory
+        if (_isTownhall(dobj.tx, dobj.ty)) {
+          world.placeObject(_fromCol, _fromRow, dobj);
+          if (dobj.bot) world.placeObject(_fromCol, _fromRow + 1, dobj.bot);
+        } else {
+          if (onRemoved) onRemoved({ type: 'object', tx: dobj.tx, ty: dobj.ty, bot: dobj.bot || null });
+        }
       }
       state.dragObject = null;
-
     }
 
     _fromCol = _fromRow = -1;

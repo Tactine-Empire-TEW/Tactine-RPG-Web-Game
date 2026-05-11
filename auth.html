@@ -1,0 +1,188 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Tectine Empire — Login / Register</title>
+  <link rel="icon" type="image/png" href="Assets/Logo.png">
+  <style>
+    *, *::before, *::after { margin: 0; padding: 0; box-sizing: border-box; }
+    body {
+      background: #050300; color: #c8a060;
+      font-family: 'Segoe UI', system-ui, sans-serif;
+      min-height: 100vh; display: flex; align-items: center; justify-content: center;
+    }
+    .bg {
+      position: fixed; inset: 0;
+      background:
+        radial-gradient(ellipse at 30% 40%, rgba(120,60,0,.18) 0%, transparent 55%),
+        linear-gradient(160deg, #080400 0%, #050200 100%);
+    }
+    .bg-grid {
+      position: fixed; inset: 0; opacity: .04;
+      background-image:
+        linear-gradient(rgba(200,160,0,.4) 1px, transparent 1px),
+        linear-gradient(90deg, rgba(200,160,0,.4) 1px, transparent 1px);
+      background-size: 48px 48px;
+    }
+    .card {
+      position: relative; z-index: 1;
+      background: linear-gradient(160deg, #100700, #080400);
+      border: 1px solid #7a4a14; border-radius: 16px;
+      padding: 40px 36px; width: min(420px, 94vw);
+      box-shadow: 0 24px 80px rgba(0,0,0,.85), 0 0 60px rgba(180,100,0,.1);
+    }
+    .logo-row {
+      display: flex; align-items: center; gap: 12px;
+      justify-content: center; margin-bottom: 28px;
+    }
+    .logo-row img { width: 44px; image-rendering: pixelated; filter: drop-shadow(0 0 8px rgba(240,180,0,.6)); }
+    .logo-row span { font-size: 20px; font-weight: 800; color: #f5c830; text-shadow: 0 0 16px rgba(240,180,0,.5); }
+
+    /* Tabs */
+    .tabs { display: flex; border-bottom: 1px solid rgba(180,100,0,.2); margin-bottom: 28px; }
+    .tab {
+      flex: 1; padding: 10px 0; text-align: center;
+      font-size: 13px; font-weight: 700; cursor: pointer;
+      color: #7a5028; border-bottom: 2px solid transparent;
+      transition: all .12s; background: none; border-top: none; border-left: none; border-right: none;
+    }
+    .tab.active { color: #f5c830; border-bottom-color: #d09030; }
+
+    /* Form */
+    label { display: block; font-size: 11px; font-weight: 700; color: #8a6028; text-transform: uppercase; letter-spacing: 1px; margin-bottom: 6px; margin-top: 18px; }
+    input[type=email], input[type=password] {
+      width: 100%; padding: 11px 14px;
+      background: rgba(20,10,2,.8); color: #f0c840;
+      border: 1px solid #4a2808; border-radius: 8px;
+      font-size: 14px; outline: none; transition: border-color .12s;
+    }
+    input:focus { border-color: #c08030; }
+    input::placeholder { color: #4a3010; }
+
+    .submit-btn {
+      width: 100%; margin-top: 28px; padding: 13px;
+      background: linear-gradient(135deg, #7a3a0e, #3e1c06);
+      color: #f5c830; border: 1px solid #c08030;
+      border-bottom: 2px solid #3a1804; border-radius: 10px;
+      font-size: 15px; font-weight: 800; cursor: pointer;
+      letter-spacing: .4px; transition: all .13s;
+      box-shadow: 0 4px 16px rgba(0,0,0,.5), 0 0 18px rgba(200,120,0,.2);
+    }
+    .submit-btn:hover { background: linear-gradient(135deg, #9a4a16, #5a2a0a); box-shadow: 0 4px 24px rgba(0,0,0,.6), 0 0 28px rgba(220,140,0,.35); }
+    .submit-btn:disabled { opacity: .5; cursor: not-allowed; }
+
+    .err-msg {
+      margin-top: 14px; padding: 10px 14px; border-radius: 7px;
+      background: rgba(180,30,30,.15); border: 1px solid rgba(200,40,40,.3);
+      color: #f07070; font-size: 12px; display: none;
+    }
+    .ok-msg {
+      margin-top: 14px; padding: 10px 14px; border-radius: 7px;
+      background: rgba(30,140,30,.12); border: 1px solid rgba(40,180,40,.25);
+      color: #70d870; font-size: 12px; display: none;
+    }
+    .back-link { display: block; text-align: center; margin-top: 22px; font-size: 12px; color: #5a3a18; text-decoration: none; }
+    .back-link:hover { color: #c09040; }
+  </style>
+</head>
+<body>
+<div class="bg"></div>
+<div class="bg-grid"></div>
+
+<div class="card">
+  <div class="logo-row">
+    <img src="Assets/Logo.png" alt="TEW">
+    <span>Tectine Empire</span>
+  </div>
+
+  <div class="tabs">
+    <button class="tab active" id="tab-login"    onclick="switchTab('login')">Login</button>
+    <button class="tab"        id="tab-register" onclick="switchTab('register')">Register</button>
+  </div>
+
+  <form id="auth-form" onsubmit="handleSubmit(event)">
+    <label for="email">Email</label>
+    <input type="email" id="email" placeholder="you@example.com" required autocomplete="email">
+
+    <label for="password">Password</label>
+    <input type="password" id="password" placeholder="••••••••" required autocomplete="current-password" minlength="6">
+
+    <div id="confirm-row" style="display:none">
+      <label for="confirm">Confirm Password</label>
+      <input type="password" id="confirm" placeholder="••••••••" autocomplete="new-password" minlength="6">
+    </div>
+
+    <button type="submit" class="submit-btn" id="submit-btn">Login</button>
+  </form>
+
+  <div class="err-msg" id="err-msg"></div>
+  <div class="ok-msg"  id="ok-msg"></div>
+
+  <a href="/" class="back-link">← Back to Landing Page</a>
+</div>
+
+<script>
+  // Server already redirects /auth → /game if cookie is valid.
+  // This page only renders when unauthenticated.
+
+  let mode = 'login';
+
+  function switchTab(m) {
+    mode = m;
+    document.getElementById('tab-login')   .classList.toggle('active', m === 'login');
+    document.getElementById('tab-register').classList.toggle('active', m === 'register');
+    document.getElementById('confirm-row').style.display = m === 'register' ? 'block' : 'none';
+    document.getElementById('submit-btn').textContent = m === 'login' ? 'Login' : 'Create Account';
+    document.getElementById('err-msg').style.display = 'none';
+    document.getElementById('ok-msg').style.display  = 'none';
+  }
+
+  async function handleSubmit(e) {
+    e.preventDefault();
+    const email    = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value;
+    const confirm  = document.getElementById('confirm').value;
+    const errEl    = document.getElementById('err-msg');
+    const okEl     = document.getElementById('ok-msg');
+    const btn      = document.getElementById('submit-btn');
+
+    errEl.style.display = 'none';
+    okEl.style.display  = 'none';
+
+    if (mode === 'register' && password !== confirm) {
+      errEl.textContent = 'Passwords do not match.';
+      errEl.style.display = 'block';
+      return;
+    }
+
+    btn.disabled = true;
+    btn.textContent = 'Please wait…';
+
+    try {
+      // Server sets an httpOnly cookie — no token handling needed here
+      const endpoint = mode === 'login' ? '/api/auth/login' : '/api/auth/register';
+      const res = await fetch(endpoint, {
+        method: 'POST',
+        credentials: 'include',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email, password }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.detail ?? 'Request failed');
+
+      okEl.textContent = mode === 'login'
+        ? 'Welcome back! Loading your empire…'
+        : 'Account created! Starting your empire…';
+      okEl.style.display = 'block';
+      setTimeout(() => { window.location.href = '/game'; }, 800);
+    } catch (err) {
+      errEl.textContent = err.message;
+      errEl.style.display = 'block';
+      btn.disabled = false;
+      btn.textContent = mode === 'login' ? 'Login' : 'Create Account';
+    }
+  }
+</script>
+</body>
+</html>
