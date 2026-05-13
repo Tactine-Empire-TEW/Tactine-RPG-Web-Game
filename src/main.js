@@ -3,7 +3,7 @@
  */
 
 import { MAP_W, MAP_H, BIOME_LABELS, WATER_UNITS, FLYING_UNITS, getUnitDisplayName, getObjectDisplayName, getObjectLevel, getObjectCapacity, getObjectCapacityLabel, getObjectSpeedBonus, getObjectProductionBonus, UPGRADE_MAP, BLDG_TOP_BOT_PAIRS, BLDG_BOT_KEYS, TILE_DST, TILE_SRC, isWaterTileCoord, CHAR_TYPES, CHAR_COLORS, CHAR_COLORS_BY_TYPE, CHAR_TYPE_LABELS, UNIT_RECRUIT_PRICES, UNIT_CAPACITY_COST, LOCKED_UNITS, VILLAGER_ONLY_UNITS, MINE_ONLY_UNITS, NAVAL_RECRUIT_UNITS, UNIT_STATS, RANGED_UNITS_SET, HYBRID_UNITS_SET } from './constants.js';
-import { getSheet, loadSheet, preloadAllChars, getChar, loadChar } from './assets.js';
+import { getSheet, loadSheet, preloadAllChars, preloadAllCharMoves, getChar, loadChar } from './assets.js';
 import { Camera    } from './Camera.js';
 import { World     } from './World.js';
 import { Renderer  } from './Renderer.js';
@@ -50,7 +50,10 @@ async function main() {
   let   _openRecruitFn = () => {};
   let   _recruitMode   = 'family';
   let   _selUnitRef    = null; // direct reference to the selected unit object
-  _epRecruit.addEventListener('click', () => _openRecruitFn(_selCol, _selRow, _recruitMode));
+  _epRecruit.addEventListener('click', () => {
+    _openRecruitFn(_selCol, _selRow, _recruitMode);
+    _tutAdvance(_recruitMode === 'villager' ? 'recruit-opened-villager' : 'recruit-opened-family');
+  });
 
   _epSellUnit.addEventListener('click', () => {
     if (!_selUnitRef) return;
@@ -75,6 +78,12 @@ async function main() {
 
   // Tutorial map pointer target — updated per tutorial step, read in game loop
   let _tutMapTarget = null;
+  // Tutorial spotlight target — { type:'tile', col, row, rows } or { type:'dom', id, pad }
+  let _tutSpotlight = null;
+  // Tutorial unit filter — when set, only this unit card is enabled in the recruit panel
+  let _tutAllowedUnit = null; // { type, colorIdx }
+  // Tutorial advance hook — set by _setupTutorial, called from hooks throughout main.js
+  let _tutAdvance = (_trigger) => false;
 
   // Track which world cell is currently shown in the panel (for upgrades)
   let _selCol = -1, _selRow = -1;
@@ -159,6 +168,10 @@ async function main() {
         _epRecruit.textContent = isVillagersHut ? '👷 Recruit Villager' : '⚔ Recruit Units';
         _buildResidentsList(topCol, topRow, _recruitMode);
       }
+
+      if (objName === 'Townhall') _tutAdvance('townhall-opened');
+      if (isFamHouse)            _tutAdvance('family-house-opened');
+      if (isVillagersHut)        _tutAdvance('villager-hut-opened');
     }
 
     _epPanel.classList.add('visible');
@@ -254,6 +267,7 @@ async function main() {
   panel.refresh();
 
   preloadAllChars();
+  preloadAllCharMoves();
 
   // Input
   const inputState = setupInput({
@@ -652,14 +666,20 @@ async function main() {
   }
 
   // ── Recruit helpers ───────────────────────────────────────────────────
-  // filterFn(unit) → bool: pass null to count all, or a function to restrict
+  // Counts capacity used by units that were recruited FROM the building at (col, row).
+  // Falls back to proximity radius for legacy units that predate houseCol/houseRow.
   function _countCapUsedNear(col, row, filterFn = null, radius = 4) {
     let total = 0;
     for (let r = 0; r < MAP_H; r++) {
       for (let c = 0; c < MAP_W; c++) {
         const u = world.getUnit(c, r);
         if (!u) continue;
-        if (Math.abs(c - col) > radius || Math.abs(r - row) > radius) continue;
+        // Prefer exact house match; fall back to proximity for legacy units
+        if (u.houseCol !== undefined) {
+          if (u.houseCol !== col || u.houseRow !== row) continue;
+        } else {
+          if (Math.abs(c - col) > radius || Math.abs(r - row) > radius) continue;
+        }
         if (filterFn && !filterFn(u)) continue;
         const colors = CHAR_COLORS_BY_TYPE[u.type] ?? CHAR_COLORS;
         const ci = Math.max(0, colors.indexOf(u.color));
@@ -704,9 +724,14 @@ async function main() {
 
     for (let r = 0; r < MAP_H; r++) {
       for (let c = 0; c < MAP_W; c++) {
-        if (Math.abs(c - col) > radius || Math.abs(r - row) > radius) continue;
         const u = world.getUnit(c, r);
         if (!u) continue;
+        // Use houseCol/houseRow for exact match; fall back to proximity for legacy units
+        if (u.houseCol !== undefined) {
+          if (u.houseCol !== col || u.houseRow !== row) continue;
+        } else {
+          if (Math.abs(c - col) > radius || Math.abs(r - row) > radius) continue;
+        }
         if (!resFilter(u)) continue;
         count++;
 
@@ -721,26 +746,34 @@ async function main() {
 
         const info = document.createElement('div');
         info.className = 'ep-res-info';
-        info.innerHTML = `<span class="ep-res-name">${name}</span><span class="ep-res-cap">⚡${capCost}</span>`;
+        info.innerHTML = `<span class="ep-res-name">${name}</span><span class="ep-res-cap">👤${capCost}</span>`;
 
         const sellBtn = document.createElement('button');
         sellBtn.className = 'ep-res-sell-btn';
         sellBtn.textContent = `💰 ${sellPrice} RF`;
-        sellBtn.title = `Sell for ${sellPrice} RF (70% of recruit price) — frees ⚡${capCost} capacity`;
+        sellBtn.title = `Sell for ${sellPrice} RF (70% of recruit price) — frees 👤${capCost} capacity`;
 
-        const uc = c, ur = r;
+        // Store reference, not coords — units move between build-time and click-time
+        const unitRef = u;
         sellBtn.addEventListener('click', () => {
-          world.removeUnitAt(uc, ur);
+          // Find by reference so a wandered unit is still found and removed correctly
+          let found = false;
+          for (let sr = 0; sr < MAP_H && !found; sr++) {
+            for (let sc = 0; sc < MAP_W && !found; sc++) {
+              if (world.getUnit(sc, sr) === unitRef) {
+                world.removeUnitAt(sc, sr);
+                found = true;
+              }
+            }
+          }
+          if (!found) { _buildResidentsList(col, row, mode); return; }
+
           addRuflux(sellPrice);
           _buildResidentsList(col, row, mode);
-          const obj = world.getObject(col, row);
-          if (obj) {
-            const cap    = getObjectCapacity(obj.tx, obj.ty) ?? 0;
-            const label  = getObjectCapacityLabel(obj.tx, obj.ty);
-            const filter = mode === 'villager' ? _villagerFilter : _familyFilter;
-            const used   = _countCapUsedNear(col, row, filter);
-            _epCapValue.textContent = `${used}/${cap} ${label} capacity`;
-          }
+          _refreshEntityCapacity(col, row, mode);
+          // Refresh recruit panel if it is already open for this house
+          const rp = document.getElementById('recruit-panel');
+          if (rp?.classList.contains('open')) _openRecruitFn(col, row, mode);
         });
 
         entry.appendChild(info);
@@ -752,6 +785,17 @@ async function main() {
     if (count === 0) {
       _epResList.innerHTML = '<div class="ep-res-empty">No residents yet</div>';
     }
+  }
+
+  // Updates the entity panel's capacity line for (col, row) in-place
+  function _refreshEntityCapacity(col, row, mode = 'family') {
+    const obj = world.getObject(col, row);
+    if (!obj || !_epCapValue) return;
+    const cap    = getObjectCapacity(obj.tx, obj.ty) ?? 0;
+    const label  = getObjectCapacityLabel(obj.tx, obj.ty);
+    const filter = mode === 'villager' ? _villagerFilter : _familyFilter;
+    const used   = _countCapUsedNear(col, row, filter);
+    _epCapValue.textContent = `${used}/${cap} ${label} capacity`;
   }
 
   // ── Recruit panel (opened from Family House entity panel) ────────────
@@ -818,7 +862,7 @@ async function main() {
       uipName.textContent     = name;
       uipCategory.textContent = CHAR_TYPE_LABELS[type] ?? type;
       uipRangeBadge.textContent = isHybrid ? '🌀 Hybrid' : isRanged ? '🏹 Ranged' : '⚔ Melee';
-      uipCapBadge.textContent   = `⚡${capCost} capacity`;
+      uipCapBadge.textContent   = `👤${capCost} capacity`;
 
       const MAX = 35;
       const ids = ['atk','def','spd','satk','sdef'];
@@ -869,14 +913,23 @@ async function main() {
       if (!pos) { _flash('✗ No space nearby!'); return; }
 
       addRuflux(-price);
-      world.placeUnit(pos.col, pos.row, type, color);
+      world.placeUnit(pos.col, pos.row, type, color, _famCol, _famRow);
 
       recruitRfEl.textContent = getRuflux().toLocaleString();
       _refreshCapStatus();
+      _refreshEntityCapacity(_famCol, _famRow, _currentMode);
+      _buildResidentsList(_famCol, _famRow, _currentMode);
 
       btn.textContent = '✔ Recruited!';
       btn.classList.add('store-buy-confirmed');
-      setTimeout(() => { _openRecruit(_famCol, _famRow, _currentMode); }, 1100);
+
+      const isVillager = VILLAGER_ONLY_UNITS.has(type);
+      const tutAdvanced = _tutAdvance(isVillager ? 'villager-recruited' : 'archer-recruited');
+      if (tutAdvanced) {
+        setTimeout(() => _closeRecruit(), 1100);
+      } else {
+        setTimeout(() => { _openRecruit(_famCol, _famRow, _currentMode); }, 1100);
+      }
     }
 
     function _openRecruit(famCol, famRow, mode = 'family') {
@@ -925,10 +978,12 @@ async function main() {
           const name     = getUnitDisplayName(type, color);
           const price    = (UNIT_RECRUIT_PRICES[type] ?? [])[ci] ?? 200;
           const capCost  = (UNIT_CAPACITY_COST[type]  ?? [])[ci] ?? 1;
-          const noWater   = isNaval && !hasWater;
-          const noSpace   = !isLocked && !noWater && capCost > remaining;
+          const noWater    = isNaval && !hasWater;
+          const noSpace    = !isLocked && !noWater && capCost > remaining;
           const cantAfford = !isLocked && !noWater && !noSpace && getRuflux() < price;
-          const disabled  = isLocked || noWater || noSpace || cantAfford;
+          const tutLocked  = _tutAllowedUnit !== null &&
+                             !(_tutAllowedUnit.type === type && _tutAllowedUnit.colorIdx === ci);
+          const disabled   = isLocked || noWater || noSpace || cantAfford || tutLocked;
 
           const cvs = document.createElement('canvas');
           cvs.width = CARD; cvs.height = CARD;
@@ -950,8 +1005,8 @@ async function main() {
 
           const capBadge = document.createElement('div');
           capBadge.className = 'recruit-cap-badge';
-          capBadge.textContent = `⚡${capCost}`;
-          capBadge.title = `Uses ${capCost} capacity`;
+          capBadge.textContent = `👤${capCost}`;
+          capBadge.title = `Uses ${capCost} space`;
           wrap.appendChild(capBadge);
 
           wrap.appendChild(cvs);
@@ -970,7 +1025,7 @@ async function main() {
           } else if (cantAfford) {
             btn.textContent = `✗ Need ${(price - getRuflux()).toLocaleString()} RF`; btn.disabled = true;
           } else {
-            btn.innerHTML = `<img src="Assets/coins/gold-coin.png" class="store-coin-icon" alt="RF"> ${price.toLocaleString()}`;
+            btn.innerHTML = `<img src="Assets/coins/gold-coin.png" class="store-coin-icon" alt="RF"> ${price.toLocaleString()} <span class="recruit-btn-cap">👤${capCost}</span>`;
             btn.addEventListener('click', e => { e.stopPropagation(); _recruitUnit(type, color, ci, btn); });
           }
           wrap.appendChild(btn);
@@ -1004,82 +1059,192 @@ async function main() {
   // ── Tutorial (shown once for fresh accounts) ─────────────────────────
   function _setupTutorial() {
     const TUTORIAL_KEY = 'tew_tutorial_shown';
-    const guide = document.getElementById('tut-guide');
+    const guide    = document.getElementById('tut-guide');
+    const blocker  = document.getElementById('tut-blocker');
+    const spotDiv  = document.getElementById('tut-spotlight');
     if (!guide) return;
 
     const purchases = JSON.parse(localStorage.getItem('tew_store_purchases') ?? '[]');
     const isFresh = !localStorage.getItem(TUTORIAL_KEY) && purchases.length === 0;
     if (!isFresh) return;
 
-    // Give fresh players ~3000 RF (≈$3 at launch rate)
-    if (getRuflux() === 0) addRuflux(3000);
+    // Start with 0 RF — each action step grants exactly what's needed
+    const existingRf = getRuflux();
+    if (existingRf > 0) addRuflux(-existingRf);
 
     const cx = Math.floor(MAP_W / 2), cy = Math.floor(MAP_H / 2) - 1;
+    const ARCHER_PRICE   = (UNIT_RECRUIT_PRICES.Archer   ?? [])[0] ?? 100;
+    const VILLAGER_PRICE = (UNIT_RECRUIT_PRICES.Villager ?? [])[0] ?? 80;
+
+    // trigger:null → manual Next button; trigger:string → auto-advance
+    // spotlight: { type:'tile', col, row, rows } or { type:'dom', id, pad }
+    // blockRecruit: true → show blocker + raise entity panel (only ep-recruit clickable)
+    // rfGrant: N → animate RF counter up to N when this step is shown
     const STEPS = [
       {
-        action: 'Your <b>Townhall</b> stands at the center of the map.<br>It is your empire\'s <b>Federal Reserve</b> — it stores all your Rufluxes.',
-        target: { col: cx, row: cy + 0.5 }, highlight: null, next: 'Got it →',
+        action: 'Your <b>Townhall</b> sits at the center — <b>click it</b>.<br>As you level up the Townhall you unlock upgrades for all other buildings.',
+        spotlight: { type: 'tile', col: cx, row: cy, rows: 2 },
+        trigger: 'townhall-opened',
       },
       {
-        action: 'A <b>Family House</b> was placed to the left of the Townhall.<br><b>Click it</b> on the map to open its panel.',
-        target: { col: cx - 2, row: cy }, highlight: null, next: 'Clicked it →',
+        action: 'A <b>Family House</b> sits to the left — <b>click it</b> to open its panel.',
+        spotlight: { type: 'tile', col: cx - 2, row: cy, rows: 2 },
+        trigger: 'family-house-opened',
       },
       {
-        action: 'The panel opened on the right.<br>Press the blue <b>Recruit Units ⚔</b> button to open the recruitment hall.',
-        target: null, highlight: 'ep-recruit', next: 'Pressed it →',
+        action: 'Press the <b>⚔ Recruit Units</b> button to open the recruitment hall.',
+        spotlight: { type: 'dom', id: 'ep-recruit', pad: 10 },
+        highlight: 'ep-recruit',
+        trigger: 'recruit-opened-family',
+        blockRecruit: true,
       },
       {
-        action: 'Look for the <b>Archers</b> section.<br>Press the gold button on <b>Tectine Archer</b> — it costs ⚡1 capacity, perfect for Lvl 1.<br>Your archer will appear next to the house!',
-        target: null, highlight: null, next: 'Archer hired! →',
+        action: 'Find <b>Tectine Archer</b> and press the gold button to recruit it.',
+        spotlight: { type: 'dom', id: 'recruit-panel', pad: 0 },
+        trigger: 'archer-recruited',
+        rfGrant: ARCHER_PRICE,
+        allowUnit: { type: 'Archer', colorIdx: 0 },
       },
       {
-        action: 'Great! Now find the <b>Villagers Hut</b> to the right of the Townhall — it\'s glowing.<br><b>Click it</b> on the map.',
-        target: { col: cx + 2, row: cy }, highlight: null, next: 'Clicked the hut →',
+        action: 'Now <b>click the Villagers Hut</b> to the right of the Townhall.',
+        spotlight: { type: 'tile', col: cx + 2, row: cy, rows: 2 },
+        trigger: 'villager-hut-opened',
       },
       {
-        action: 'The Villagers Hut panel opened.<br>Press <b>👷 Recruit Villager</b> to open the villager recruitment hall.',
-        target: null, highlight: 'ep-recruit', next: 'Pressed it →',
+        action: 'Press <b>👷 Recruit Villager</b> to open the villager hall.',
+        spotlight: { type: 'dom', id: 'ep-recruit', pad: 10 },
+        highlight: 'ep-recruit',
+        trigger: 'recruit-opened-villager',
+        blockRecruit: true,
       },
       {
-        action: 'Find <b>Village Smith</b> in the list.<br>Press the gold button to recruit one — the Smith will appear beside the hut and head to work at the Townhall!',
-        target: null, highlight: null, next: 'Hired! →',
+        action: 'Find <b>Tectine Farmer</b> and recruit them.',
+        spotlight: { type: 'dom', id: 'recruit-panel', pad: 0 },
+        trigger: 'villager-recruited',
+        rfGrant: VILLAGER_PRICE,
+        allowUnit: { type: 'Villager', colorIdx: 0 },
       },
       {
-        action: '🎉 <b>Your empire is alive!</b><br>You have a warrior defending your lands and a Village Smith working at the Townhall.<br>Explore the Store to grow further!',
-        target: null, highlight: 'btn-store', next: 'Start Conquering ⚔',
+        action: '🎉 <b>Your empire is alive!</b><br>You have a warrior and a farmer ready to serve.<br>Explore the Store to grow further!',
+        spotlight: { type: 'dom', id: 'btn-store', pad: 8 },
+        highlight: 'btn-store',
+        next: 'Start Conquering ⚔',
+        trigger: null,
       },
     ];
 
     let step = 0;
     const total = STEPS.length;
+    let _rfAnimTimer = null;
+
+    function _animateRfGrant(amount) {
+      if (_rfAnimTimer) clearInterval(_rfAnimTimer);
+      const hudEl = document.getElementById('ruflux-count');
+      if (hudEl) hudEl.classList.add('tut-rf-animating');
+      const ticks = 28;
+      let granted = 0;
+      _rfAnimTimer = setInterval(() => {
+        const remaining = amount - granted;
+        if (remaining <= 0) {
+          clearInterval(_rfAnimTimer);
+          if (hudEl) hudEl.classList.remove('tut-rf-animating');
+          // Re-render recruit panel so unit buttons reflect the new balance
+          if (_selCol !== -1) _openRecruitFn(_selCol, _selRow, _recruitMode);
+          return;
+        }
+        const chunk = Math.ceil(remaining / Math.max(1, ticks - granted));
+        addRuflux(chunk);
+        granted += chunk;
+      }, 40);
+    }
+
+    function _clearTutUI() {
+      blocker?.classList.remove('active');
+      document.getElementById('entity-panel')?.classList.remove('tut-recruit-only');
+      spotDiv?.classList.remove('active');
+      _tutSpotlight = null;
+      _tutAllowedUnit = null;
+      document.getElementById('recruit-overlay')?.style.removeProperty('pointer-events');
+      document.querySelectorAll('.tutorial-pulse').forEach(el => el.classList.remove('tutorial-pulse'));
+    }
 
     function _showStep(n) {
       const s = STEPS[n];
       document.getElementById('tut-step-label').textContent = `${n + 1} / ${total}`;
       document.getElementById('tut-progress-fill').style.width = `${((n + 1) / total) * 100}%`;
-      const arrowEl = document.getElementById('tut-arrow');
-      if (arrowEl) arrowEl.style.display = 'none'; // hide old arrow — no longer used
+      document.getElementById('tut-arrow').style.display = 'none';
       document.getElementById('tut-action').innerHTML = s.action;
+
       const nextBtn = document.getElementById('tut-next');
-      nextBtn.textContent = s.next;
-      nextBtn.classList.toggle('tut-last-step', n === total - 1);
-      document.querySelectorAll('.tutorial-pulse').forEach(el => el.classList.remove('tutorial-pulse'));
+      if (s.next) {
+        nextBtn.textContent = s.next;
+        nextBtn.style.display = '';
+        nextBtn.classList.toggle('tut-last-step', n === total - 1);
+      } else {
+        nextBtn.style.display = 'none';
+      }
+
+      _clearTutUI();
+
+      // Spotlight
+      if (s.spotlight) {
+        _tutSpotlight = s.spotlight;
+        spotDiv?.classList.add('active');
+      }
+
+      // Map pointer ping (tile targets only) — map pointer code adds +0.5 internally
+      _tutMapTarget = s.spotlight?.type === 'tile'
+        ? { col: s.spotlight.col, row: s.spotlight.row + (s.spotlight.rows ?? 1) / 2 - 0.5 }
+        : null;
+
+      // Pulse highlight on a named DOM element
       if (s.highlight) document.getElementById(s.highlight)?.classList.add('tutorial-pulse');
-      // Update the map pointer — null hides it
-      _tutMapTarget = s.target ?? null;
+
+      // Blocker: only for button steps (recruit button)
+      if (s.blockRecruit) {
+        blocker?.classList.add('active');
+        document.getElementById('entity-panel')?.classList.add('tut-recruit-only');
+      }
+
+      // Close entity panel when stepping to a tile-target step
+      if (s.spotlight?.type === 'tile') _hideEntityPanel();
+
+      // Lock recruit overlay open during recruit-unit steps so clicking dark area doesn't close the panel
+      if (s.spotlight?.id === 'recruit-panel') {
+        document.getElementById('recruit-overlay')?.style.setProperty('pointer-events', 'none');
+      }
+
+      // Restrict recruit panel to a single unit during tutorial
+      _tutAllowedUnit = s.allowUnit ?? null;
+
+      // RF grant animation
+      if (s.rfGrant) _animateRfGrant(s.rfGrant);
     }
 
     function _dismiss() {
+      if (_rfAnimTimer) clearInterval(_rfAnimTimer);
       localStorage.setItem(TUTORIAL_KEY, '1');
       guide.classList.remove('open');
       _tutMapTarget = null;
-      document.querySelectorAll('.tutorial-pulse').forEach(el => el.classList.remove('tutorial-pulse'));
+      _clearTutUI();
+      _tutAdvance = () => false;
     }
 
     guide.classList.add('open');
     _showStep(0);
 
+    _tutAdvance = (trigger) => {
+      if (!guide.classList.contains('open')) return false;
+      const s = STEPS[step];
+      if (!s || s.trigger !== trigger) return false;
+      step++;
+      if (step >= total) _dismiss();
+      else _showStep(step);
+      return true;
+    };
+
     document.getElementById('tut-next').addEventListener('click', () => {
+      if (STEPS[step]?.trigger !== null) return;
       step++;
       if (step >= total) _dismiss();
       else _showStep(step);
@@ -1178,7 +1343,6 @@ async function main() {
     const tutPtr = document.getElementById('tut-map-pointer');
     if (tutPtr) {
       if (_tutMapTarget) {
-        // Center on the target tile
         const px = camera.ox + (_tutMapTarget.col + 0.5) * TILE_DST;
         const py = camera.oy + (_tutMapTarget.row + 0.5) * TILE_DST;
         tutPtr.style.left    = `${Math.round(px)}px`;
@@ -1186,6 +1350,32 @@ async function main() {
         tutPtr.style.display = 'block';
       } else {
         tutPtr.style.display = 'none';
+      }
+    }
+
+    // ── Tutorial spotlight — reposition each frame ────────────────────
+    const spotDiv = document.getElementById('tut-spotlight');
+    if (spotDiv && _tutSpotlight) {
+      const sp = _tutSpotlight;
+      if (sp.type === 'tile') {
+        const pad = 4;
+        const px = camera.ox + sp.col * TILE_DST - pad;
+        const py = camera.oy + sp.row * TILE_DST - pad;
+        const rows = sp.rows ?? 1;
+        spotDiv.style.left   = `${Math.round(px)}px`;
+        spotDiv.style.top    = `${Math.round(py)}px`;
+        spotDiv.style.width  = `${TILE_DST + pad * 2}px`;
+        spotDiv.style.height = `${TILE_DST * rows + pad * 2}px`;
+      } else if (sp.type === 'dom') {
+        const el = document.getElementById(sp.id);
+        if (el) {
+          const r = el.getBoundingClientRect();
+          const pad = sp.pad ?? 8;
+          spotDiv.style.left   = `${Math.round(r.left   - pad)}px`;
+          spotDiv.style.top    = `${Math.round(r.top    - pad)}px`;
+          spotDiv.style.width  = `${Math.round(r.width  + pad * 2)}px`;
+          spotDiv.style.height = `${Math.round(r.height + pad * 2)}px`;
+        }
       }
     }
   }

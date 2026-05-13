@@ -3,8 +3,9 @@
 
 import { BIOME_SHEETS, CHAR_TYPES, CHAR_COLORS, CHAR_COLORS_BY_TYPE } from './constants.js';
 
-const _sheets = new Map();   // biome  → HTMLImageElement
-const _chars  = new Map();   // 'Type_01_Idle' → HTMLImageElement
+const _sheets     = new Map();   // biome  → HTMLImageElement
+const _chars      = new Map();   // 'Type_01_Idle' → HTMLImageElement
+const _charsMove  = new Map();   // 'Type_01_Move' → HTMLImageElement
 
 // ── Internal ──────────────────────────────────────────────────────────
 function _loadImage(src) {
@@ -51,7 +52,7 @@ export function getChar(type, color) {
 }
 
 /**
- * Background-load all character sprites.
+ * Background-load all character idle sprites.
  * @param {(loaded: number, total: number) => void} [onProgress]
  */
 export async function preloadAllChars(onProgress) {
@@ -60,4 +61,29 @@ export async function preloadAllChars(onProgress) {
   await Promise.all(pairs.map(([t, c]) =>
     loadChar(t, c).then(() => { done++; onProgress?.(done, pairs.length); })
   ));
+}
+
+/** Load (or return cached) character move sprite (4 rows × 4 frames). Silently returns null on 404. */
+export async function loadCharMove(type, color) {
+  const key = `${type}_${color}_Move`;
+  if (_charsMove.has(key)) return _charsMove.get(key);
+  try {
+    const img = await _loadImage(`Assets/1x/Character sprites/${key}.png`);
+    _charsMove.set(key, img);
+    return img;
+  } catch {
+    _charsMove.set(key, null);
+    return null;
+  }
+}
+
+/** Synchronous move-sprite access — returns null if not yet loaded. */
+export function getCharMove(type, color) {
+  return _charsMove.get(`${type}_${color}_Move`) ?? null;
+}
+
+/** Background-load all character move sprites. */
+export async function preloadAllCharMoves() {
+  const pairs = CHAR_TYPES.flatMap(t => (CHAR_COLORS_BY_TYPE[t] ?? CHAR_COLORS).map(c => [t, c]));
+  await Promise.all(pairs.map(([t, c]) => loadCharMove(t, c)));
 }

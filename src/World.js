@@ -73,12 +73,14 @@ export class World {
     this._save();
   }
 
-  /** Place a new user-spawned unit with its home at (col,row). */
-  placeUnit(col, row, type, color) {
+  /** Place a new user-spawned unit with its home at (col,row).
+   *  houseCol/houseRow track which building recruited it (for capacity accounting). */
+  placeUnit(col, row, type, color, houseCol, houseRow) {
     if (!this.inBounds(col, row)) return;
     this._units[row][col] = {
       type, color,
       homeCol: col, homeRow: row,
+      houseCol: houseCol ?? col, houseRow: houseRow ?? row,
       moveCooldown: 60 + Math.floor(Math.random() * 60),
       // Visual interpolation state (not saved)
       renderX: col, renderY: row,
@@ -179,6 +181,8 @@ export class World {
         unit.toX   = nc;
         unit.toY   = nr;
         unit.moveProgress = 0;
+        // Direction for sprite row: 0=south, 1=west, 2=east, 3=north
+        unit.dir = dc < 0 ? 1 : dc > 0 ? 2 : dr > 0 ? 0 : 3;
 
         this._units[nr][nc] = unit;
         this._units[r][c]   = null;

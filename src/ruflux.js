@@ -59,6 +59,8 @@ function _updateAllDisplays(n) {
 
   const hudCount = document.getElementById('ruflux-count');
   if (hudCount) hudCount.textContent = countFmt;
+  const recruitCount = document.getElementById('recruit-rf-count');
+  if (recruitCount) recruitCount.textContent = countFmt;
   const modCount = document.getElementById('ruflux-modal-count');
   if (modCount) modCount.textContent = countFmt;
   const modValue = document.getElementById('ruflux-modal-value');

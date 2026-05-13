@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tectine Empire</title>
   <link rel="icon" type="image/png" href="Assets/Logo.png">
-  <link rel="stylesheet" href="src/style.css">
+  <link rel="stylesheet" href="src/style.css?v=2">
   <!-- Auth is enforced server-side. If this page loaded, the user is authenticated. -->
 </head>
 <body>
@@ -392,6 +392,11 @@
     </div>
   </div>
 
+  <!-- Tutorial blocker — covers everything when only a specific button should work -->
+  <div id="tut-blocker" class="tut-blocker"></div>
+  <!-- Tutorial spotlight — transparent hole with dark surround that focuses attention -->
+  <div id="tut-spotlight" class="tut-spotlight"></div>
+
   <!-- Tutorial map pointer — tracks a world tile each frame -->
   <div id="tut-map-pointer" class="tut-map-pointer" style="display:none"></div>
 
@@ -427,7 +432,7 @@
     <button id="uip-buy-btn" class="uip-buy-btn"></button>
   </div>
 
-  <script type="module" src="src/main.js?v=24"></script>
+  <script type="module" src="src/main.js?v=33"></script>
 
   <script type="module">
     import { auth, economy, worldApi } from './src/api.js';

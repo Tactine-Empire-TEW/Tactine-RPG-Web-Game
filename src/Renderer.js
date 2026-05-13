@@ -1,5 +1,5 @@
 import { TILE_SRC, TILE_DST, CHAR_SRC, GRASS_TILE } from './constants.js';
-import { getSheet, getChar } from './assets.js';
+import { getSheet, getChar, getCharMove } from './assets.js';
 
 /**
  * Owns the <canvas> and draws every frame.
@@ -145,13 +145,19 @@ export class Renderer {
       for (let c = c0; c < c1; c++) {
         const u = unitL[r][c];
         if (!u) continue;
-        const img = getChar(u.type, u.color);
+
+        // While moving use the directional Move sprite; otherwise the Idle sprite (row 0)
+        const isMoving = u.moveProgress !== undefined && u.moveProgress < 1;
+        const moveImg  = isMoving ? getCharMove(u.type, u.color) : null;
+        const img      = moveImg ?? getChar(u.type, u.color);
         if (!img) continue;
+
+        const frameY = moveImg ? (u.dir ?? 0) * CHAR_SRC : 0;
 
         // Use smooth interpolated position; fall back to grid position for legacy units
         const rx = u.renderX ?? c;
         const ry = u.renderY ?? r;
-        ctx.drawImage(img, frameX, 0, CHAR_SRC, CHAR_SRC, ox + rx * T, oy + ry * T, T, T);
+        ctx.drawImage(img, frameX, frameY, CHAR_SRC, CHAR_SRC, ox + rx * T, oy + ry * T, T, T);
       }
     }
   }
