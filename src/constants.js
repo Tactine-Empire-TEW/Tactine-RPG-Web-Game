@@ -674,10 +674,14 @@ export function getObjectCapacity(tx, ty) {
   if (ty === 50) {
     const lvl = getObjectLevel(tx, ty) ?? 1;
     if (_FAMILY_HOUSE_TX.has(tx)) return lvl; // Lvl1=1, Lvl2=2, ...
-    if (_WATCHTOWER_TX.has(tx))   return Math.min(lvl, WATCHTOWER_MAX_WORKERS);
+    if (_WATCHTOWER_TX.has(tx))   return lvl; // Fields Land: capacity = level (1-10)
   }
   if (ty === 56 && _FAMILY_HOUSE_TX.has(tx)) {
-    return getObjectLevel(tx, ty) ?? 1; // Villagers Hut: Lvl1=1, Lvl2=2, ...
+    return (getObjectLevel(tx, ty) ?? 1) * 2; // Lvl1=2, Lvl2=4, ..., Lvl10=20
+  }
+  // Windmill: capacity = level * 2 fields (Lvl1=2, Lvl2=4, etc.)
+  if (ty === 58 && _FAMILY_HOUSE_TX.has(tx)) {
+    return (getObjectLevel(tx, ty) ?? 1) * 2;
   }
   return null;
 }
@@ -688,6 +692,7 @@ export function getObjectCapacity(tx, ty) {
 export function getObjectCapacityLabel(tx, ty) {
   if (ty === 50 && _WATCHTOWER_TX.has(tx)) return 'workers';
   if (ty === 56) return 'villagers';
+  if (ty === 58 && _FAMILY_HOUSE_TX.has(tx)) return 'fields';
   return 'units';
 }
 

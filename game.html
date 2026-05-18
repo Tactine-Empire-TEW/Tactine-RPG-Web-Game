@@ -5,7 +5,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
   <title>Tectine Empire</title>
   <link rel="icon" type="image/png" href="Assets/Logo.png">
-  <link rel="stylesheet" href="src/style.css?v=2">
+  <link rel="stylesheet" href="src/style.css?v=13">
   <!-- Auth is enforced server-side. If this page loaded, the user is authenticated. -->
 </head>
 <body>
@@ -30,6 +30,17 @@
         <span id="ruflux-count" class="ruflux-hud-amount">0</span>
       </div>
       <button id="btn-ruflux-add" class="ruflux-add-btn" title="Get more Rufluxes">+</button>
+    </div>
+
+    <!-- Food resource widget -->
+    <div class="food-hud" id="food-hud">
+      <div class="food-hud-icon-frame">
+        <img src="Assets/FoodIcon.png" class="food-hud-icon" alt="Food">
+      </div>
+      <div class="food-hud-info">
+        <span class="food-hud-label">Food</span>
+        <span id="food-count" class="food-hud-amount">0</span>
+      </div>
     </div>
 
     <select id="biome-sel" class="biome-sel">
@@ -68,9 +79,9 @@
     <!-- Header -->
     <div class="inv-header">
       <div class="inv-header-left">
-        <div class="inv-title-icon">⚔</div>
+        <div class="inv-title-icon">🌿</div>
         <div>
-          <div class="inv-title">Inventory</div>
+          <div class="inv-title">Biome</div>
           <div class="inv-subtitle">Your collected items</div>
         </div>
       </div>
@@ -81,31 +92,10 @@
       <button id="inv-close" class="inv-close-btn" title="Close">✕</button>
     </div>
 
-    <!-- Category tabs -->
-    <div class="inv-tabs">
-      <button class="inv-cat active" data-cat="buildings">
-        <span class="inv-tab-icon">🏰</span>
-        <span>Buildings</span>
-      </button>
-      <button class="inv-cat" data-cat="walls">
-        <span class="inv-tab-icon">🧱</span>
-        <span>Walls</span>
-      </button>
-      <button class="inv-cat" data-cat="units">
-        <span class="inv-tab-icon">⚔️</span>
-        <span>Units</span>
-      </button>
-      <button class="inv-cat" data-cat="water">
-        <span class="inv-tab-icon">💧</span>
-        <span>Water</span>
-      </button>
-    </div>
-
     <!-- How-to hint -->
     <div class="inv-hint">
-      <div class="inv-hint-row">🖱 <b>Click</b> item to arm it</div>
-      <div class="inv-hint-row">🗺 <b>Click / drag</b> on map to place</div>
-      <div class="inv-hint-row">↩ <b>Double-click</b> placed item to reclaim</div>
+      <div class="inv-hint-row">🖱 <b>Click</b> a water tile to arm it</div>
+      <div class="inv-hint-row">🗺 <b>Click</b> on map to place</div>
     </div>
 
     <!-- Item grid -->
@@ -215,8 +205,8 @@
   <!-- Bottom action buttons -->
   <div id="bottom-actions">
     <button class="action-btn" id="btn-inventory">
-      <span class="action-icon">📦</span>
-      <span class="action-label">Inventory</span>
+      <span class="action-icon">🌿</span>
+      <span class="action-label">Biome</span>
     </button>
     <button class="action-btn" id="btn-store">
       <span class="action-icon">🏪</span>
@@ -271,7 +261,60 @@
       </div>
       <div id="ep-residents-list" class="ep-res-list"></div>
     </div>
+    <!-- Fields Land worker assignment -->
+    <button id="ep-assign-farmer" class="ep-assign-btn" style="display:none">🌾 Assign Farmer</button>
+    <div id="ep-field-workers" class="ep-field-workers" style="display:none">
+      <div class="ep-fw-header">
+        <span class="ep-fw-title">👷 Working Farmers</span>
+      </div>
+      <div id="ep-field-workers-list" class="ep-res-list"></div>
+    </div>
+    <!-- Windmill assign-field section -->
+    <div id="ep-windmill-section" class="ep-windmill-section" style="display:none">
+      <div class="ep-windmill-bar-wrap">
+        <div class="ep-windmill-bar-header">
+          <span class="ep-windmill-bar-label">⚙ Processing</span>
+          <span id="ep-windmill-pct" class="ep-windmill-pct">0%</span>
+        </div>
+        <div class="ep-windmill-bar-track">
+          <div id="ep-windmill-bar-fill" class="ep-windmill-bar-fill" style="width:0%"></div>
+        </div>
+      </div>
+      <button id="ep-assign-field" class="ep-assign-btn">🌾 Assign Field</button>
+      <div id="ep-windmill-fields" class="ep-field-workers">
+        <div class="ep-fw-header">
+          <span class="ep-fw-title">🌾 Assigned Fields</span>
+        </div>
+        <div id="ep-windmill-fields-list" class="ep-res-list"></div>
+      </div>
+    </div>
     <div class="ep-stats-placeholder">— stats coming soon —</div>
+  </div>
+
+  <!-- Assign Farmer popup -->
+  <div id="assign-overlay" class="assign-overlay" style="display:none"></div>
+  <div id="assign-popup" class="assign-popup" style="display:none">
+    <div class="assign-popup-header">
+      <div>
+        <div class="assign-popup-title">🌾 Assign Farmer</div>
+        <div class="assign-popup-sub">0/1 farmers assigned</div>
+      </div>
+      <button id="assign-close" class="assign-close-btn">✕</button>
+    </div>
+    <div id="assign-list" class="assign-list"></div>
+  </div>
+
+  <!-- Windmill assign-field popup -->
+  <div id="windmill-assign-overlay" class="assign-overlay" style="display:none"></div>
+  <div id="windmill-assign-popup" class="assign-popup" style="display:none">
+    <div class="assign-popup-header">
+      <div>
+        <div class="assign-popup-title">⚙ Assign Fields Land</div>
+        <div class="assign-popup-sub">Select a field to supply this windmill</div>
+      </div>
+      <button id="windmill-assign-close" class="assign-close-btn">✕</button>
+    </div>
+    <div id="windmill-assign-list" class="assign-list"></div>
   </div>
 
   <!-- Unit Recruitment Panel (opened via Family House) -->
@@ -432,7 +475,7 @@
     <button id="uip-buy-btn" class="uip-buy-btn"></button>
   </div>
 
-  <script type="module" src="src/main.js?v=33"></script>
+  <script type="module" src="src/main.js?v=58"></script>
 
   <script type="module">
     import { auth, economy, worldApi } from './src/api.js';

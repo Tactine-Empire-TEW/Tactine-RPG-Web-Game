@@ -10,6 +10,18 @@ import { getRuflux, addRuflux } from './ruflux.js';
 const PURCHASE_KEY = 'tew_store_purchases';
 const CARD = 64; // card size in px
 
+// Tutorial hook — when set, only this building name is purchasable
+let _tutAllowedBuilding = null;
+export function setTutStoreFilter(name) {
+  _tutAllowedBuilding = name ?? null;
+  _buildGrid();
+}
+
+// Called when a building is bought (closes store and arms placement)
+// or when a wall is selected (arms wall-paint mode without upfront purchase)
+let _onItemReady = null;
+export function setOnItemReady(fn) { _onItemReady = fn; }
+
 // ── RF prices by display name (buildings) ────────────────────────────
 const BUILDING_PRICES = {
   'Family House':         200,
@@ -26,7 +38,7 @@ const BUILDING_PRICES = {
   "Dragon's Incubator": 2_000,
   // Townhall is not purchasable — it is pre-placed at the map centre
 };
-const WALL_PRICE = 50; // all Lvl1 wall tiles share the same price
+export const WALL_PRICE = 50; // all Lvl1 wall tiles share the same price
 
 // ── RF prices by unit type ───────────────────────────────────────────
 export const UNIT_PRICES = {
@@ -211,9 +223,13 @@ function _wrapCard(canvas, name, price, entry) {
   wrap.className = 'store-card';
   wrap.title = name;
 
+  const tutLocked = _tutAllowedBuilding !== null && name !== _tutAllowedBuilding;
+  if (tutLocked) wrap.style.opacity = '0.35';
+
   const btn = document.createElement('button');
   btn.className = 'store-buy-btn';
   btn.innerHTML = `<img src="Assets/coins/gold-coin.png" class="store-coin-icon" alt="RF"> ${price.toLocaleString()}`;
+  if (tutLocked) { btn.disabled = true; btn.style.cursor = 'default'; }
 
   wrap.appendChild(canvas);
 
@@ -226,7 +242,27 @@ function _wrapCard(canvas, name, price, entry) {
   wrap.addEventListener('mouseenter', () => { if (_infoEl) _infoEl.textContent = `${name} — ${price.toLocaleString()} RF each`; });
   wrap.addEventListener('mouseleave', () => { if (_infoEl) _infoEl.textContent = ''; });
 
-  btn.addEventListener('click', () => _openQtyModal(canvas, name, price, entry, btn));
+  btn.addEventListener('click', () => {
+    if (tutLocked) return;
+    if (entry.kind === 'wall') {
+      // Wall paint mode — no upfront purchase, charges per tile placed
+      if (_onItemReady) _onItemReady({ ...entry, wallPaint: true });
+    } else {
+      // Buy exactly 1 immediately and arm placement
+      const result = _buy(entry, 1);
+      if (result === 'ok') {
+        window.dispatchEvent(new CustomEvent('tew:purchased', { detail: { name: entry.name } }));
+        btn.textContent = '✔ Placing…';
+        btn.classList.add('store-buy-confirmed');
+        setTimeout(() => { btn.innerHTML = `<img src="Assets/coins/gold-coin.png" class="store-coin-icon" alt="RF"> ${price.toLocaleString()}`; btn.classList.remove('store-buy-confirmed'); }, 1500);
+        if (_onItemReady) _onItemReady(entry);
+      } else {
+        btn.textContent = '✗ Not enough RF';
+        btn.classList.add('store-buy-broke');
+        setTimeout(() => { btn.innerHTML = `<img src="Assets/coins/gold-coin.png" class="store-coin-icon" alt="RF"> ${price.toLocaleString()}`; btn.classList.remove('store-buy-broke'); }, 1500);
+      }
+    }
+  });
 
   _grid.appendChild(wrap);
 }
@@ -307,6 +343,7 @@ function _confirmQty() {
   _closeQtyModal();
 
   if (result === 'ok') {
+    window.dispatchEvent(new CustomEvent('tew:purchased', { detail: { name: entry.name } }));
     const orig = triggerBtn.innerHTML;
     triggerBtn.textContent = `✔ ×${qty} Bought!`;
     triggerBtn.classList.add('store-buy-confirmed');

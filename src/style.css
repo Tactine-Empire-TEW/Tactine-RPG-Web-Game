@@ -2524,6 +2524,275 @@ select.biome-sel:focus { border-color: #c08030; }
 }
 
 /* ── Step-by-step Tutorial Guide Card ───────────────────────────────── */
+/* ── Fields Land assign button ───────────────────────────────────────── */
+.ep-assign-btn {
+  width: 100%;
+  padding: 7px 0;
+  background: linear-gradient(135deg, #3e1806, #1a0900);
+  color: #f5c830;
+  border: 1px solid #7a4010;
+  border-radius: 8px;
+  font-size: 11px;
+  font-weight: 700;
+  cursor: pointer;
+  transition: all .12s;
+  text-shadow: 0 0 8px rgba(240,180,0,.3);
+}
+.ep-assign-btn:hover {
+  background: linear-gradient(135deg, #5a2a10, #2e1206);
+  border-color: #c08030;
+  box-shadow: 0 0 10px rgba(200,130,0,.2);
+  color: #ffd84a;
+}
+.ep-field-workers { width: 100%; }
+.ep-fw-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 4px;
+}
+.ep-fw-title { font-size: 10px; color: #c09040; font-weight: 700; letter-spacing: .2px; }
+
+/* ── Assign Farmer popup — RPG character roster ──────────────────────── */
+.assign-overlay {
+  position: fixed; inset: 0;
+  background: rgba(0,0,0,.80);
+  backdrop-filter: blur(4px);
+  z-index: 300;
+}
+.assign-popup {
+  position: fixed;
+  top: 50%; left: 50%;
+  transform: translate(-50%, -50%);
+  width: 540px;
+  max-height: 560px;
+  background: linear-gradient(165deg, #130900 0%, #0a0400 55%, #110700 100%);
+  border: 1px solid #9a5e18;
+  border-radius: 16px;
+  z-index: 301;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  box-shadow:
+    0 28px 90px rgba(0,0,0,.92),
+    0 0 80px rgba(200,110,0,.1),
+    inset 0 1px 0 rgba(255,200,0,.07);
+}
+.assign-popup-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 20px 22px 16px;
+  background: rgba(255,180,0,.025);
+  border-bottom: 1px solid rgba(200,110,0,.18);
+  gap: 12px;
+}
+.assign-popup-title {
+  font-size: 20px;
+  font-weight: 900;
+  color: #f5c830;
+  letter-spacing: .6px;
+  text-shadow: 0 0 24px rgba(240,180,0,.55), 0 1px 2px #000;
+}
+.assign-popup-sub {
+  font-size: 11px;
+  color: #9a6830;
+  margin-top: 3px;
+  letter-spacing: .3px;
+}
+.assign-close-btn {
+  width: 34px; height: 34px;
+  display: flex; align-items: center; justify-content: center;
+  background: rgba(100,30,0,.45);
+  border: 1px solid #5a2a08;
+  border-radius: 8px;
+  color: #a06838;
+  cursor: pointer;
+  font-size: 15px;
+  transition: all .12s;
+  flex-shrink: 0;
+}
+.assign-close-btn:hover {
+  background: rgba(190,60,0,.5);
+  color: #f0a040;
+  border-color: #c06020;
+}
+
+.assign-list {
+  overflow-y: auto;
+  scrollbar-width: thin;
+  scrollbar-color: #6a3a14 transparent;
+  padding: 18px 20px 16px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 14px;
+  justify-content: flex-start;
+  align-content: flex-start;
+}
+.assign-list::-webkit-scrollbar { width: 5px; }
+.assign-list::-webkit-scrollbar-thumb { background: #6a3a14; border-radius: 4px; }
+
+/* ── Character card ─── */
+.assign-card {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 7px;
+  width: 118px;
+  padding: 14px 10px 12px;
+  background: linear-gradient(160deg, rgba(40,18,4,.95), rgba(18,7,1,.95));
+  border: 1px solid #4a2208;
+  border-radius: 13px;
+  position: relative;
+  transition: border-color .14s, transform .14s, box-shadow .14s;
+  cursor: default;
+}
+.assign-card:hover {
+  border-color: #c08030;
+  transform: translateY(-3px);
+  box-shadow: 0 10px 28px rgba(0,0,0,.65), 0 0 20px rgba(200,130,0,.15);
+}
+.assign-card-active {
+  background: linear-gradient(160deg, rgba(58,26,4,.95), rgba(28,10,1,.95));
+  border-color: #d09020 !important;
+  box-shadow: 0 0 24px rgba(220,150,0,.25), inset 0 0 12px rgba(200,120,0,.06) !important;
+}
+.assign-card-active::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: 13px;
+  border: 1px solid rgba(240,180,0,.25);
+  pointer-events: none;
+}
+.assign-card-dim { opacity: .32; pointer-events: none; }
+
+/* Portrait frame */
+.assign-portrait-wrap {
+  position: relative;
+  width: 76px; height: 76px;
+}
+.assign-portrait {
+  width: 76px; height: 76px;
+  border-radius: 10px;
+  image-rendering: pixelated;
+  display: block;
+  border: 2px solid rgba(154,94,24,.5);
+  background: #0a0400;
+  box-shadow: inset 0 -3px 10px rgba(0,0,0,.6), 0 2px 8px rgba(0,0,0,.5);
+}
+.assign-card-active .assign-portrait {
+  border-color: rgba(220,160,20,.75);
+  box-shadow: inset 0 -3px 8px rgba(0,0,0,.4), 0 0 16px rgba(200,140,0,.35);
+}
+
+/* Status badge */
+.assign-status-badge {
+  position: absolute;
+  bottom: -6px; left: 50%;
+  transform: translateX(-50%);
+  font-size: 8.5px;
+  font-weight: 800;
+  padding: 2px 9px;
+  border-radius: 8px;
+  white-space: nowrap;
+  letter-spacing: .3px;
+}
+.badge-working {
+  background: linear-gradient(135deg, #3a1e04, #1e0c02);
+  color: #f5c830;
+  border: 1px solid rgba(200,130,20,.6);
+  box-shadow: 0 0 8px rgba(200,130,0,.3);
+}
+.badge-free {
+  background: linear-gradient(135deg, #0a2060, #061230);
+  color: #80c8ff;
+  border: 1px solid rgba(50,130,220,.4);
+}
+.badge-busy {
+  background: linear-gradient(135deg, #4a1e00, #281000);
+  color: #f09850;
+  border: 1px solid rgba(200,100,20,.45);
+}
+
+.assign-card-name {
+  font-size: 11px;
+  font-weight: 800;
+  color: #d4a050;
+  text-align: center;
+  line-height: 1.25;
+  margin-top: 5px;
+  letter-spacing: .2px;
+  text-shadow: 0 0 8px rgba(200,140,0,.2);
+}
+
+.assign-card-btn {
+  width: 100%;
+  padding: 5px 0;
+  background: linear-gradient(135deg, #4a2208, #281004);
+  color: #f5c830;
+  border: 1px solid rgba(190,110,20,.6);
+  border-bottom: 2px solid rgba(80,30,4,.8);
+  border-radius: 7px;
+  font-size: 10px;
+  font-weight: 800;
+  letter-spacing: .3px;
+  cursor: pointer;
+  transition: all .12s;
+  text-shadow: 0 0 6px rgba(240,180,0,.3);
+}
+.assign-card-btn:hover {
+  background: linear-gradient(135deg, #6a3210, #3e1a06);
+  border-color: #c08030;
+  box-shadow: 0 0 10px rgba(200,130,0,.2);
+}
+.assign-card-btn:disabled { opacity: .3; cursor: not-allowed; }
+.assign-card-btn-remove {
+  background: linear-gradient(135deg, #4a1804, #220a02);
+  color: #e89050;
+  border-color: rgba(200,90,20,.45);
+  border-bottom-color: rgba(100,30,5,.8);
+  text-shadow: none;
+}
+.assign-card-btn-remove:hover {
+  background: linear-gradient(135deg, #7a2a08, #4a1804);
+  border-color: #e89050;
+  box-shadow: 0 0 10px rgba(200,80,20,.2);
+}
+
+.assign-empty {
+  font-size: 12px;
+  color: #6a4020;
+  text-align: center;
+  padding: 32px 20px;
+  line-height: 2;
+  width: 100%;
+  font-style: italic;
+}
+
+/* ── Wheat harvest particle (position + animation driven by JS each frame) */
+.wheat-particle {
+  position: fixed;
+  width: 24px;
+  height: 24px;
+  pointer-events: none;
+  z-index: 13;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 0 4px rgba(240,200,0,.6));
+  will-change: transform, opacity, left, top;
+}
+
+/* ── Tutorial assign-only lock (keeps entity panel above blocker, only assign btn works) */
+.entity-panel.tut-assign-only {
+  z-index: 215 !important;
+}
+.entity-panel.tut-assign-only > * {
+  pointer-events: none !important;
+}
+.entity-panel.tut-assign-only #ep-assign-farmer {
+  pointer-events: auto !important;
+}
+
 /* ── Tutorial blocker — blocks clicks except where the step needs ──────── */
 .tut-blocker {
   position: fixed;
@@ -2820,4 +3089,108 @@ select.biome-sel:focus { border-color: #c08030; }
   opacity: .45; cursor: not-allowed;
   background: linear-gradient(135deg, #3a3010, #201c08);
   border-color: #5a5020; color: #908040;
+}
+
+/* ── Food resource HUD ────────────────────────────────────────────────── */
+.food-hud {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  background: linear-gradient(135deg, rgba(14,7,0,.92), rgba(8,3,0,.92));
+  border: 1px solid #7a4a14;
+  border-radius: 9px;
+  padding: 4px 12px 4px 6px;
+  box-shadow: 0 2px 10px rgba(0,0,0,.55), inset 0 1px 0 rgba(255,200,0,.07);
+  flex-shrink: 0;
+}
+.food-hud-icon-frame {
+  width: 34px; height: 34px;
+  border-radius: 7px;
+  background: linear-gradient(160deg, rgba(60,30,0,.8), rgba(20,8,0,.9));
+  border: 1px solid #6a3a0a;
+  box-shadow: inset 0 1px 4px rgba(0,0,0,.6), 0 0 8px rgba(200,130,0,.12);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  flex-shrink: 0;
+}
+.food-hud-icon {
+  width: 30px; height: 30px;
+  object-fit: cover;
+  image-rendering: auto;
+  display: block;
+}
+.food-hud-info {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.1;
+}
+.food-hud-label {
+  font-size: 8.5px;
+  font-weight: 700;
+  color: #8a6020;
+  text-transform: uppercase;
+  letter-spacing: 1px;
+}
+.food-hud-amount {
+  font-size: 16px;
+  font-weight: 800;
+  color: #f5c830;
+  text-shadow: 0 0 12px rgba(240,180,0,.5), 0 1px 0 #000;
+  letter-spacing: .3px;
+  min-width: 36px;
+}
+
+/* ── Windmill entity panel section ───────────────────────────────────── */
+.ep-windmill-section { width: 100%; }
+.ep-windmill-bar-wrap { width: 100%; margin-bottom: 6px; }
+.ep-windmill-bar-header {
+  display: flex; justify-content: space-between; align-items: center;
+  margin-bottom: 3px;
+}
+.ep-windmill-bar-label { font-size: 10px; color: #c09040; font-weight: 700; }
+.ep-windmill-pct { font-size: 10px; color: #f5c830; font-weight: 800; }
+.ep-windmill-bar-track {
+  width: 100%; height: 8px;
+  background: rgba(0,0,0,.4);
+  border: 1px solid rgba(180,120,20,.3);
+  border-radius: 4px;
+  overflow: hidden;
+}
+.ep-windmill-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #8a4010, #f5c830, #ffe060);
+  border-radius: 4px;
+  transition: width .15s linear;
+  box-shadow: 0 0 6px rgba(200,160,0,.5);
+}
+
+/* ── Windmill canvas progress-bar overlays ────────────────────────────── */
+.windmill-bar-overlay {
+  position: fixed;
+  pointer-events: none;
+  z-index: 14;
+  height: 5px;
+  border-radius: 3px;
+  background: rgba(0,0,0,.55);
+  border: 1px solid rgba(180,120,20,.4);
+  overflow: hidden;
+}
+.windmill-bar-overlay-fill {
+  height: 100%;
+  background: linear-gradient(90deg, #c07020, #f5c830);
+  border-radius: 3px;
+  box-shadow: 0 0 4px rgba(200,160,0,.6);
+}
+
+/* ── Food harvest particle ───────────────────────────────────────────── */
+.food-particle {
+  position: fixed;
+  width: 28px; height: 28px;
+  pointer-events: none;
+  z-index: 14;
+  image-rendering: pixelated;
+  filter: drop-shadow(0 0 5px rgba(80,200,40,.6));
+  will-change: transform, opacity, left, top;
 }

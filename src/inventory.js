@@ -8,7 +8,7 @@ import { getSheet, getChar, loadChar } from './assets.js';
 const PURCHASE_KEY = 'tew_store_purchases';
 const CARD = 64;
 
-let _panel, _grid, _category = 'buildings';
+let _panel, _grid, _category = 'water'; // Biome panel only shows water tiles
 let _editPanel = null;
 let _enterEditMode = null;
 
@@ -68,7 +68,7 @@ function _aggregate(kind) {
 // ── Grid ──────────────────────────────────────────────────────────────
 function _buildGrid() {
   _grid.innerHTML = '';
-  const kindMap = { buildings: 'building', walls: 'wall', units: 'unit' };
+  const kindMap = { buildings: 'building', walls: 'wall', units: 'unit', water: 'wall' };
   const items   = _aggregate(kindMap[_category]);
 
   if (items.length === 0) {

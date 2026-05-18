@@ -1,0 +1,7 @@
+slug: tactine-rpg
+domain: tew-empire.online
+type: docker-compose
+port: 8080
+env:
+  DB_PASSWORD: a0wdUUf-ZuJblf1d9nT7nSQFqn9PeDdb
+  SECRET_KEY: f5bcf1390bed42f984d0ec66711c57a58e4fd2cbe5b8c6e3769867da1ef96706

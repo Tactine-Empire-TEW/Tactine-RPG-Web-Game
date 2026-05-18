@@ -2,7 +2,7 @@
  * main.js — bootstraps the game.
  */
 
-import { MAP_W, MAP_H, BIOME_LABELS, WATER_UNITS, FLYING_UNITS, getUnitDisplayName, getObjectDisplayName, getObjectLevel, getObjectCapacity, getObjectCapacityLabel, getObjectSpeedBonus, getObjectProductionBonus, UPGRADE_MAP, BLDG_TOP_BOT_PAIRS, BLDG_BOT_KEYS, TILE_DST, TILE_SRC, isWaterTileCoord, CHAR_TYPES, CHAR_COLORS, CHAR_COLORS_BY_TYPE, CHAR_TYPE_LABELS, UNIT_RECRUIT_PRICES, UNIT_CAPACITY_COST, LOCKED_UNITS, VILLAGER_ONLY_UNITS, MINE_ONLY_UNITS, NAVAL_RECRUIT_UNITS, UNIT_STATS, RANGED_UNITS_SET, HYBRID_UNITS_SET } from './constants.js';
+import { MAP_W, MAP_H, BIOME_LABELS, WATER_UNITS, FLYING_UNITS, getUnitDisplayName, getObjectDisplayName, getObjectLevel, getObjectCapacity, getObjectCapacityLabel, getObjectSpeedBonus, getObjectProductionBonus, UPGRADE_MAP, BLDG_TOP_BOT_PAIRS, BLDG_BOT_KEYS, TILE_DST, TILE_SRC, isWaterTileCoord, isWallLvl1Tile, CHAR_TYPES, CHAR_COLORS, CHAR_COLORS_BY_TYPE, CHAR_TYPE_LABELS, UNIT_RECRUIT_PRICES, UNIT_CAPACITY_COST, LOCKED_UNITS, VILLAGER_ONLY_UNITS, MINE_ONLY_UNITS, NAVAL_RECRUIT_UNITS, UNIT_STATS, RANGED_UNITS_SET, HYBRID_UNITS_SET } from './constants.js';
 import { getSheet, loadSheet, preloadAllChars, preloadAllCharMoves, getChar, loadChar } from './assets.js';
 import { Camera    } from './Camera.js';
 import { World     } from './World.js';
@@ -10,7 +10,7 @@ import { Renderer  } from './Renderer.js';
 import { EditPanel } from './EditPanel.js';
 import { setupInput } from './input.js?v=5';
 import { setupRuflux, addRuflux, getRuflux } from './ruflux.js';
-import { setupStore, UNIT_PRICES, openQtyModal } from './store.js';
+import { setupStore, UNIT_PRICES, openQtyModal, setTutStoreFilter, setOnItemReady, WALL_PRICE } from './store.js';
 
 async function main() {
   const canvas   = document.getElementById('world');
@@ -43,12 +43,15 @@ async function main() {
   const _epProdValue  = document.getElementById('ep-prod-value');
   const _epUpgrade    = document.getElementById('ep-upgrade');
 
-  const _epRecruit   = document.getElementById('ep-recruit');
-  const _epResidents = document.getElementById('ep-residents');
-  const _epResList   = document.getElementById('ep-residents-list');
-  const _epSellUnit  = document.getElementById('ep-sell-unit');
-  let   _openRecruitFn = () => {};
-  let   _recruitMode   = 'family';
+  const _epRecruit      = document.getElementById('ep-recruit');
+  const _epResidents    = document.getElementById('ep-residents');
+  const _epResList      = document.getElementById('ep-residents-list');
+  const _epSellUnit     = document.getElementById('ep-sell-unit');
+  const _epAssignFarmer = document.getElementById('ep-assign-farmer');
+  const _epFieldWorkers = document.getElementById('ep-field-workers');
+  const _epFWList       = document.getElementById('ep-field-workers-list');
+  let   _openRecruitFn  = () => {};
+  let   _recruitMode    = 'family';
   let   _selUnitRef    = null; // direct reference to the selected unit object
   _epRecruit.addEventListener('click', () => {
     _openRecruitFn(_selCol, _selRow, _recruitMode);
@@ -84,6 +87,31 @@ async function main() {
   let _tutAllowedUnit = null; // { type, colorIdx }
   // Tutorial advance hook — set by _setupTutorial, called from hooks throughout main.js
   let _tutAdvance = (_trigger) => false;
+  // Fields Land glow overlays — kept as no-ops, removed per UX feedback
+  const _fieldGlows = [];
+  // Wheat harvest particles — [{ el, fieldCol, fieldRow, startTime, dur, jitter }]
+  const _wheatParticles = [];
+
+  // Windmill production system
+  const _windmillBars = []; // { col, row, wrapEl, fillEl } — canvas overlays
+  const _foodParticles = []; // { el, col, row, startTime, dur, jitter }
+  const WINDMILL_BASE_RATE = 100 / 90; // % per second per matching-level field at lvl1
+  const FOOD_KEY = 'tew_empire_food';
+  function _getFood() { try { return parseInt(localStorage.getItem(FOOD_KEY) ?? '0', 10) || 0; } catch { return 0; } }
+  function _addFood(n) {
+    const v = _getFood() + n;
+    try { localStorage.setItem(FOOD_KEY, String(v)); } catch {}
+    const el = document.getElementById('food-count');
+    if (el) el.textContent = v.toLocaleString();
+  }
+  function _updateFoodDisplay() {
+    const el = document.getElementById('food-count');
+    if (el) el.textContent = _getFood().toLocaleString();
+  }
+  // Cached Food.png image — 128×128, 8×8 grid of 16×16 pixel-art sprites
+  const _foodImg = new Image();
+  _foodImg.src = 'Assets/Food.png';
+
 
   // Track which world cell is currently shown in the panel (for upgrades)
   let _selCol = -1, _selRow = -1;
@@ -141,7 +169,9 @@ async function main() {
         const filter   = bldgName === 'Villagers Hut' ? _villagerFilter
                        : bldgName === 'Family House'  ? _familyFilter
                        : null;
-        const used = filter ? _countCapUsedNear(topCol, topRow, filter) : 0;
+        const used = bldgName === 'Windmill'
+          ? _countWindmillFields(topCol, topRow)
+          : filter ? _countCapUsedNear(topCol, topRow, filter) : 0;
         _epCapValue.textContent = `${used}/${cap} ${label} capacity`;
       }
 
@@ -157,21 +187,41 @@ async function main() {
       _epUpgrade.style.display = canUpgrade ? 'block' : 'none';
 
       const objName = getObjectDisplayName(topTx, topTy).replace(' Top', '');
-      const isFamHouse    = objName === 'Family House';
+      const isFamHouse     = objName === 'Family House';
       const isVillagersHut = objName === 'Villagers Hut';
-      const showRecruit   = isFamHouse || isVillagersHut;
-      _epSellUnit.style.display  = 'none';
-      _epRecruit.style.display   = showRecruit ? 'block' : 'none';
-      _epResidents.style.display = showRecruit ? 'block' : 'none';
+      const isFieldsLand   = objName === 'Fields Land';
+      const showRecruit    = isFamHouse || isVillagersHut;
+      _epSellUnit.style.display     = 'none';
+      _epRecruit.style.display      = showRecruit ? 'block' : 'none';
+      _epResidents.style.display    = showRecruit ? 'block' : 'none';
+      _epAssignFarmer.style.display = isFieldsLand ? 'block' : 'none';
+      _epFieldWorkers.style.display = isFieldsLand ? 'block' : 'none';
       if (showRecruit) {
         _recruitMode = isVillagersHut ? 'villager' : 'family';
         _epRecruit.textContent = isVillagersHut ? '👷 Recruit Villager' : '⚔ Recruit Units';
         _buildResidentsList(topCol, topRow, _recruitMode);
       }
+      if (isFieldsLand) {
+        _buildFieldWorkersList(topCol, topRow);
+        _epAssignFarmer.onclick = () => _openAssignPopup(topCol, topRow);
+        _tutAdvance('fields-land-panel-opened');
+      }
+
+      const isWindmill = objName === 'Windmill';
+      const epWindmillSection = document.getElementById('ep-windmill-section');
+      const epAssignField     = document.getElementById('ep-assign-field');
+      epWindmillSection.style.display = isWindmill ? 'block' : 'none';
+      if (isWindmill) {
+        const obj = world.getObject(topCol, topRow);
+        if (!obj.assignedFields) obj.assignedFields = [];
+        _buildWindmillFieldsList(topCol, topRow);
+        epAssignField.onclick = () => _openWindmillAssignPopup(topCol, topRow);
+        _tutAdvance('windmill-panel-opened');
+      }
 
       if (objName === 'Townhall') _tutAdvance('townhall-opened');
-      if (isFamHouse)            _tutAdvance('family-house-opened');
-      if (isVillagersHut)        _tutAdvance('villager-hut-opened');
+      if (isFamHouse)             _tutAdvance('family-house-opened');
+      if (isVillagersHut)         _tutAdvance('villager-hut-opened');
     }
 
     _epPanel.classList.add('visible');
@@ -179,9 +229,12 @@ async function main() {
 
   function _hideEntityPanel() {
     _epPanel.classList.remove('visible');
-    _epRecruit.style.display   = 'none';
-    _epResidents.style.display = 'none';
-    _epSellUnit.style.display  = 'none';
+    _epRecruit.style.display      = 'none';
+    _epResidents.style.display    = 'none';
+    _epSellUnit.style.display     = 'none';
+    _epAssignFarmer.style.display = 'none';
+    _epFieldWorkers.style.display = 'none';
+    document.getElementById('ep-windmill-section').style.display = 'none';
     _selCol = _selRow = -1;
     _selUnitRef = null;
   }
@@ -275,17 +328,87 @@ async function main() {
     getEditMode: () => editMode,
     onPick:   (kind, data, col, row) => _showEntityPanel(kind, data, col, row),
     onClear:  () => _hideEntityPanel(),
-    beforePlace: sel     => _invCanPlace(sel),
-    afterPlace:  sel     => _invOnPlaced(sel),
-    onRemoved:   removed => _invOnRemoved(removed),
+    beforePlace: sel     => {
+      if (sel?.kind === 'object' && isWallLvl1Tile(sel.tx, sel.ty)) {
+        if (getRuflux() < WALL_PRICE) return false;
+        addRuflux(-WALL_PRICE);
+        return true;
+      }
+      return _invCanPlace(sel);
+    },
+    afterPlace:  sel     => {
+      _invOnPlaced(sel);
+      if (sel.kind === 'object') {
+        const n = getObjectDisplayName(sel.tx, sel.ty).replace(' Top', '');
+        const tutTriggered = (n === 'Gold Mine' && _tutAdvance('gold-mine-placed')) ||
+                             (n === 'Fields Land' && _tutAdvance('fields-land-placed')) ||
+                             (n === 'Windmill' && _tutAdvance('windmill-placed'));
+        // For direct-from-store placement: exit edit mode after one placement
+        // (walls and water tiles stay in edit mode for continuous painting)
+        if (sel.isUnlimited && !isWallLvl1Tile(sel.tx, sel.ty) && !isWaterTileCoord(sel.ty)) {
+          panel.selected = null;
+          editMode = false;
+          canvas.style.cursor = 'grab';
+        }
+      }
+    },
+    onRemoved:     removed => _invOnRemoved(removed),
+    onObjectMoved: (oldCol, oldRow, newCol, newRow) => {
+      // Keep _selCol/_selRow in sync so the entity panel stays live after a drag
+      if (_selCol === oldCol && _selRow === oldRow) {
+        _selCol = newCol;
+        _selRow = newRow;
+      }
+    },
   });
 
   // UI wiring
   setupRuflux(); // async — market data loads in background, non-blocking
   setupStore();
+  setOnItemReady((entry) => {
+    // Immediately kill pointer-events on all side panels so they don't intercept
+    // canvas clicks during their CSS slide-out animation
+    const closePanel = (id) => {
+      const el = document.getElementById(id);
+      if (el) { el.classList.remove('open'); el.style.pointerEvents = 'none'; }
+    };
+    closePanel('store-panel');
+    closePanel('store-overlay');
+    closePanel('inv-panel');
+    closePanel('inv-overlay');
+    closePanel('recruit-panel');
+    closePanel('recruit-overlay');
+
+    // Arm item for placement
+    const sel = entry.bot
+      ? { kind: 'object', tx: entry.tx, ty: entry.ty, bot: entry.bot, isUnlimited: true }
+      : { kind: 'object', tx: entry.tx, ty: entry.ty, isUnlimited: true };
+    panel.selected = sel;
+    editMode = true;
+    canvas.style.cursor = 'crosshair';
+
+    // Restore pointer-events after slide-out completes
+    setTimeout(() => {
+      ['store-panel','inv-panel','recruit-panel'].forEach(id => {
+        const el = document.getElementById(id);
+        if (el) el.style.removeProperty('pointer-events');
+      });
+    }, 400);
+  });
+  document.getElementById('btn-store').addEventListener('click', () => _tutAdvance('store-opened'));
+  window.addEventListener('tew:purchased', e => {
+    const name = e.detail?.name ?? '';
+    if (name === 'Gold Mine')   _tutAdvance('gold-mine-purchased');
+    if (name === 'Fields Land') _tutAdvance('fields-land-purchased');
+    if (name === 'Windmill')    _tutAdvance('windmill-purchased');
+  });
   _openRecruitFn = _setupRecruit();
   _setupTutorial();
   _setupInventory();
+
+  document.getElementById('windmill-assign-close').addEventListener('click', _closeWindmillAssignPopup);
+  document.getElementById('windmill-assign-overlay').addEventListener('click', _closeWindmillAssignPopup);
+  _updateFoodDisplay();
 
   const loadingOverlay = document.getElementById('loading-overlay');
   biomeSel.addEventListener('change', async () => {
@@ -307,7 +430,7 @@ async function main() {
     const invPanel   = document.getElementById('inv-panel');
     const invOverlay = document.getElementById('inv-overlay');
     const invGrid    = document.getElementById('inv-grid');
-    let   invCat     = 'buildings';
+    let   invCat     = 'water';
     let   _selWrap   = null; // currently highlighted card
 
     function _getPurchases() {
@@ -787,6 +910,405 @@ async function main() {
     }
   }
 
+  // ── Fields Land workers system ────────────────────────────────────────
+
+  function _countFieldWorkers(col, row) {
+    let n = 0;
+    for (let r = 0; r < MAP_H; r++)
+      for (let c = 0; c < MAP_W; c++) {
+        const u = world.getUnit(c, r);
+        if (u && u.fieldCol === col && u.fieldRow === row) n++;
+      }
+    return n;
+  }
+
+  function _buildFieldWorkersList(col, row) {
+    if (!_epFWList) return;
+    _epFWList.innerHTML = '';
+    let count = 0;
+    for (let r = 0; r < MAP_H; r++) {
+      for (let c = 0; c < MAP_W; c++) {
+        const u = world.getUnit(c, r);
+        if (!u || u.fieldCol !== col || u.fieldRow !== row) continue;
+        count++;
+        const name = getUnitDisplayName(u.type, u.color);
+        const entry = document.createElement('div');
+        entry.className = 'ep-res-entry';
+        entry.innerHTML = `<span class="ep-res-name">${name}</span><span class="ep-res-cap">🌾 Working</span>`;
+        _epFWList.appendChild(entry);
+      }
+    }
+    // Update capacity display
+    const obj = world.getObject(col, row);
+    if (obj && _epCapValue) {
+      const cap = getObjectCapacity(obj.tx, obj.ty) ?? 0;
+      _epCapValue.textContent = `${count}/${cap} farmers capacity`;
+    }
+    if (count === 0) {
+      _epFWList.innerHTML = '<div class="ep-res-empty">No farmers assigned</div>';
+    }
+  }
+
+  function _openAssignPopup(fieldCol, fieldRow) {
+    const overlay = document.getElementById('assign-overlay');
+    const popup   = document.getElementById('assign-popup');
+    const list    = document.getElementById('assign-list');
+    if (!overlay || !popup || !list) return;
+
+    const obj = world.getObject(fieldCol, fieldRow);
+    const maxWorkers = obj ? (getObjectCapacity(obj.tx, obj.ty) ?? 1) : 1;
+    const currentWorkers = _countFieldWorkers(fieldCol, fieldRow);
+
+    // Update popup subtitle
+    const sub = popup.querySelector('.assign-popup-sub');
+    if (sub) sub.textContent = `${currentWorkers}/${maxWorkers} farmers assigned`;
+
+    list.innerHTML = '';
+    let hasVillagers = false;
+
+    for (let r = 0; r < MAP_H; r++) {
+      for (let c = 0; c < MAP_W; c++) {
+        const u = world.getUnit(c, r);
+        if (!u || !VILLAGER_ONLY_UNITS.has(u.type)) continue;
+        hasVillagers = true;
+
+        const name       = getUnitDisplayName(u.type, u.color);
+        const alreadyHere = u.fieldCol === fieldCol && u.fieldRow === fieldRow;
+        const atCapacity  = currentWorkers >= maxWorkers && !alreadyHere;
+        const assignedElsewhere = u.fieldCol !== undefined && !alreadyHere;
+
+        const card = document.createElement('div');
+        card.className = 'assign-card' + (alreadyHere ? ' assign-card-active' : '') + (atCapacity ? ' assign-card-dim' : '');
+
+        // Portrait canvas inside a wrap (for the absolute-positioned badge)
+        const portraitWrap = document.createElement('div');
+        portraitWrap.className = 'assign-portrait-wrap';
+
+        const cvs = document.createElement('canvas');
+        cvs.className = 'assign-portrait';
+        cvs.width = 76; cvs.height = 76;
+        const ctx = cvs.getContext('2d');
+        ctx.imageSmoothingEnabled = false;
+        ctx.fillStyle = alreadyHere ? '#101f08' : '#060d03';
+        ctx.fillRect(0, 0, 76, 76);
+        const img = getChar(u.type, u.color);
+        if (img) ctx.drawImage(img, 0, 0, 16, 16, 6, 6, 64, 64);
+        else loadChar(u.type, u.color).then(() => {
+          const img2 = getChar(u.type, u.color);
+          ctx.fillStyle = alreadyHere ? '#101f08' : '#060d03';
+          ctx.fillRect(0, 0, 76, 76);
+          if (img2) ctx.drawImage(img2, 0, 0, 16, 16, 6, 6, 64, 64);
+        });
+
+        // Status badge (inside wrap for absolute positioning)
+        const badge = document.createElement('div');
+        badge.className = 'assign-status-badge';
+        if (alreadyHere)          { badge.textContent = '🌾 Working'; badge.classList.add('badge-working'); }
+        else if (assignedElsewhere) { badge.textContent = '🔗 Busy';   badge.classList.add('badge-busy'); }
+        else                        { badge.textContent = '✅ Free';    badge.classList.add('badge-free'); }
+
+        const nameEl = document.createElement('div');
+        nameEl.className = 'assign-card-name';
+        nameEl.textContent = name;
+
+        const btn = document.createElement('button');
+        btn.className = 'assign-card-btn' + (alreadyHere ? ' assign-card-btn-remove' : '');
+        if (atCapacity)  { btn.textContent = 'Field Full'; btn.disabled = true; }
+        else if (alreadyHere) btn.textContent = '− Unassign';
+        else             btn.textContent = '+ Assign';
+
+        const unitRef = u;
+        btn.addEventListener('click', () => {
+          if (alreadyHere) {
+            unitRef.fieldCol = undefined;
+            unitRef.fieldRow = undefined;
+            _removeFieldGlow(fieldCol, fieldRow);
+          } else {
+            unitRef.fieldCol = fieldCol;
+            unitRef.fieldRow = fieldRow;
+            const fp = _findNearbyEmpty(fieldCol, fieldRow);
+            if (fp) { unitRef.homeCol = fp.col; unitRef.homeRow = fp.row; }
+            _addFieldGlow(fieldCol, fieldRow);
+            _tutAdvance('villager-assigned-to-field');
+          }
+          world._save?.();
+          _closeAssignPopup();
+          _buildFieldWorkersList(fieldCol, fieldRow);
+          const newCount = _countFieldWorkers(fieldCol, fieldRow);
+          if (_epCapValue) _epCapValue.textContent = `${newCount}/${maxWorkers} farmers capacity`;
+        });
+
+        portraitWrap.appendChild(cvs);
+        portraitWrap.appendChild(badge);
+        card.appendChild(portraitWrap);
+        card.appendChild(nameEl);
+        card.appendChild(btn);
+        list.appendChild(card);
+      }
+    }
+
+    if (!hasVillagers) {
+      list.innerHTML = '<div class="assign-empty">🌾<br><b>No farmers yet</b><br>Recruit Tectine Farmers from your Villagers Hut first!</div>';
+    }
+
+    overlay.style.display = 'block';
+    popup.style.display   = 'flex';
+    document.getElementById('assign-close').onclick = _closeAssignPopup;
+    overlay.onclick = _closeAssignPopup;
+  }
+
+  function _closeAssignPopup() {
+    document.getElementById('assign-overlay').style.display = 'none';
+    document.getElementById('assign-popup').style.display   = 'none';
+  }
+
+  function _addFieldGlow(_col, _row) {}   // glow removed per UX feedback
+  function _removeFieldGlow(_col, _row) {}
+
+  // ── Windmill production system ────────────────────────────────────────
+  function _isWindmillObj(o) {
+    return o && getObjectDisplayName(o.tx, o.ty).replace(' Top', '') === 'Windmill';
+  }
+
+  function _windmillCapacity(o) {
+    return (getObjectLevel(o.tx, o.ty) ?? 1) * 2; // Lvl1=2, Lvl2=4
+  }
+
+  function _windmillOutput(o) {
+    return 10 + ((getObjectLevel(o.tx, o.ty) ?? 1) - 1) * 5; // Lvl1=10, Lvl2=15, Lvl3=20
+  }
+
+  function _windmillFillRatePerSec(o) {
+    const windLevel = getObjectLevel(o.tx, o.ty) ?? 1;
+    const fields = o.assignedFields ?? [];
+    let rate = 0;
+    for (const {col: fc, row: fr} of fields) {
+      const fo = world.getObject(fc, fr);
+      if (!fo) continue;
+      const fieldLevel = getObjectLevel(fo.tx, fo.ty) ?? 1;
+      const matchRatio = Math.min(fieldLevel, windLevel) / windLevel;
+      const contribution = matchRatio * 0.8 + 0.2; // min 20% even with mismatch
+      rate += contribution * windLevel;
+    }
+    return rate * WINDMILL_BASE_RATE;
+  }
+
+  function _countWindmillFields(col, row) {
+    return (world.getObject(col, row)?.assignedFields ?? []).length;
+  }
+
+  function _buildWindmillFieldsList(col, row) {
+    const listEl = document.getElementById('ep-windmill-fields-list');
+    if (!listEl) return;
+    listEl.innerHTML = '';
+    const obj = world.getObject(col, row);
+    const fields = obj?.assignedFields ?? [];
+    if (!fields.length) {
+      listEl.innerHTML = '<div style="font-size:10px;color:#6a4020;font-style:italic;padding:4px 0">No fields assigned</div>';
+      return;
+    }
+    for (const {col: fc, row: fr} of fields) {
+      const fo = world.getObject(fc, fr);
+      const lvl = fo ? (getObjectLevel(fo.tx, fo.ty) ?? 1) : '?';
+      const row2 = document.createElement('div');
+      row2.className = 'ep-res-row';
+      row2.innerHTML = `<span style="flex:1;font-size:10px;color:#c09040">🌾 Fields Land Lvl ${lvl} (${fc},${fr})</span>`;
+      const unBtn = document.createElement('button');
+      unBtn.className = 'ep-res-sell-btn';
+      unBtn.textContent = 'Unassign';
+      unBtn.style.cssText = 'font-size:9px;padding:2px 6px;background:rgba(100,30,0,.5);color:#e89050;border:1px solid rgba(200,90,20,.4);border-radius:4px;cursor:pointer';
+      unBtn.onclick = () => {
+        const o2 = world.getObject(col, row);
+        if (o2?.assignedFields) {
+          o2.assignedFields = o2.assignedFields.filter(f => !(f.col === fc && f.row === fr));
+          world._save?.();
+        }
+        _buildWindmillFieldsList(col, row);
+        const cap = _windmillCapacity(world.getObject(col, row));
+        const used = _countWindmillFields(col, row);
+        if (_epCapValue) _epCapValue.textContent = `${used}/${cap} fields capacity`;
+      };
+      row2.appendChild(unBtn);
+      listEl.appendChild(row2);
+    }
+  }
+
+  let _windmillAssignTarget = null; // { col, row }
+
+  function _openWindmillAssignPopup(col, row) {
+    _windmillAssignTarget = { col, row };
+    const overlay = document.getElementById('windmill-assign-overlay');
+    const popup   = document.getElementById('windmill-assign-popup');
+    const listEl  = document.getElementById('windmill-assign-list');
+    if (!overlay || !popup || !listEl) return;
+
+    // Find all Fields Land on the map
+    const allFields = [];
+    for (let r = 0; r < world.h; r++) {
+      for (let c = 0; c < world.w; c++) {
+        const o = world.getObject(c, r);
+        if (o && getObjectDisplayName(o.tx, o.ty).replace(' Top', '') === 'Fields Land') {
+          allFields.push({ col: c, row: r, obj: o });
+        }
+      }
+    }
+
+    const windmillObj = world.getObject(col, row);
+    const assigned = windmillObj?.assignedFields ?? [];
+    const cap = _windmillCapacity(windmillObj);
+    const atCapacity = assigned.length >= cap;
+
+    listEl.innerHTML = '';
+    if (!allFields.length) {
+      listEl.innerHTML = '<div class="assign-empty">No Fields Land on the map.<br>Place one first.</div>';
+    }
+    for (const {col: fc, row: fr, obj: fo} of allFields) {
+      const alreadyHere = assigned.some(f => f.col === fc && f.row === fr);
+      // Check if assigned to another windmill
+      let assignedElsewhere = false;
+      for (let r = 0; r < world.h; r++) {
+        for (let c = 0; c < world.w; c++) {
+          if (c === col && r === row) continue;
+          const wo = world.getObject(c, r);
+          if (wo && _isWindmillObj(wo) && (wo.assignedFields ?? []).some(f => f.col === fc && f.row === fr)) {
+            assignedElsewhere = true;
+          }
+        }
+      }
+
+      const fieldLevel = getObjectLevel(fo.tx, fo.ty) ?? 1;
+      const card = document.createElement('div');
+      card.className = 'assign-card' + (alreadyHere ? ' assign-card-active' : '') + (assignedElsewhere && !alreadyHere ? ' assign-card-dim' : '');
+
+      // Canvas preview
+      const cvs = document.createElement('canvas');
+      cvs.width = 76; cvs.height = 76;
+      cvs.className = 'assign-portrait';
+      const ctx2 = cvs.getContext('2d');
+      ctx2.imageSmoothingEnabled = false;
+      ctx2.fillStyle = '#0a0400';
+      ctx2.fillRect(0, 0, 76, 76);
+      const sh = getSheet(biome);
+      if (sh) ctx2.drawImage(sh, fo.tx * 16, fo.ty * 16, 16, 16, 0, 0, 76, 76);
+
+      const portraitWrap = document.createElement('div');
+      portraitWrap.className = 'assign-portrait-wrap';
+      portraitWrap.appendChild(cvs);
+
+      // Status badge
+      const badge = document.createElement('span');
+      badge.className = 'assign-status-badge ' + (alreadyHere ? 'badge-working' : assignedElsewhere ? 'badge-busy' : 'badge-free');
+      badge.textContent = alreadyHere ? 'Assigned' : assignedElsewhere ? 'Busy' : 'Free';
+      portraitWrap.appendChild(badge);
+
+      const nameEl = document.createElement('div');
+      nameEl.className = 'assign-card-name';
+      nameEl.textContent = `Lvl ${fieldLevel} Field`;
+
+      const btn = document.createElement('button');
+      btn.className = 'assign-card-btn' + (alreadyHere ? ' assign-card-btn-remove' : '');
+      if (atCapacity && !alreadyHere) { btn.textContent = 'Full'; btn.disabled = true; }
+      else if (alreadyHere)           btn.textContent = '− Unassign';
+      else                             btn.textContent = '+ Assign';
+
+      btn.onclick = () => {
+        const wo = world.getObject(col, row);
+        if (!wo) return;
+        if (!wo.assignedFields) wo.assignedFields = [];
+        if (alreadyHere) {
+          wo.assignedFields = wo.assignedFields.filter(f => !(f.col === fc && f.row === fr));
+        } else {
+          if (wo.assignedFields.length < cap) {
+            wo.assignedFields.push({ col: fc, row: fr });
+            _tutAdvance('field-assigned-to-windmill');
+          }
+        }
+        world._save?.();
+        _closeWindmillAssignPopup();
+        _buildWindmillFieldsList(col, row);
+        const newCap = _windmillCapacity(wo);
+        const newUsed = _countWindmillFields(col, row);
+        if (_epCapValue) _epCapValue.textContent = `${newUsed}/${newCap} fields capacity`;
+      };
+
+      card.appendChild(portraitWrap);
+      card.appendChild(nameEl);
+      card.appendChild(btn);
+      listEl.appendChild(card);
+    }
+
+    overlay.style.display = 'block';
+    popup.style.display   = 'flex';
+  }
+
+  function _closeWindmillAssignPopup() {
+    document.getElementById('windmill-assign-overlay').style.display = 'none';
+    document.getElementById('windmill-assign-popup').style.display   = 'none';
+    _windmillAssignTarget = null;
+  }
+
+  function _ensureWindmillBar(col, row) {
+    if (_windmillBars.some(b => b.col === col && b.row === row)) return;
+    const wrap = document.createElement('div');
+    wrap.className = 'windmill-bar-overlay';
+    const fill = document.createElement('div');
+    fill.className = 'windmill-bar-overlay-fill';
+    wrap.appendChild(fill);
+    document.body.appendChild(wrap);
+    _windmillBars.push({ col, row, wrapEl: wrap, fillEl: fill });
+  }
+
+  function _removeWindmillBar(col, row) {
+    const idx = _windmillBars.findIndex(b => b.col === col && b.row === row);
+    if (idx === -1) return;
+    _windmillBars[idx].wrapEl.remove();
+    _windmillBars.splice(idx, 1);
+  }
+
+  function _spawnFoodParticle(col, row) {
+    // Draw a random sprite from the 8×8 grid onto a canvas element
+    const cvs = document.createElement('canvas');
+    cvs.width = 28; cvs.height = 28;
+    cvs.className = 'food-particle';
+    cvs.style.left = '-9999px';
+    const ctx = cvs.getContext('2d');
+    ctx.imageSmoothingEnabled = false;
+    // Skip known grey/metallic sprites: (2,0), (6,0), (6,1)
+    const _goodSprites = [
+      [0,0],[1,0],[3,0],[4,0],[5,0],[7,0],
+      [0,1],[1,1],[2,1],[3,1],[4,1],[5,1],[7,1],
+      [0,2],[1,2],[2,2],[3,2],[4,2],[5,2],[7,2],
+      [0,3],[1,3],[2,3],[3,3],[4,3],[5,3],[6,3],[7,3],
+    ];
+    const pick = _goodSprites[Math.floor(Math.random() * _goodSprites.length)];
+    const sc = pick[0], sr = pick[1];
+    const draw = () => ctx.drawImage(_foodImg, sc * 16, sr * 16, 16, 16, 0, 0, 28, 28);
+    if (_foodImg.complete) draw();
+    else _foodImg.addEventListener('load', draw, { once: true });
+    document.body.appendChild(cvs);
+    _foodParticles.push({
+      el: cvs, col, row,
+      startTime: Date.now(), dur: 2200,
+      jitter: Math.random() * 24 - 12,
+    });
+  }
+
+  function _spawnWheatParticle(fieldCol, fieldRow) {
+    const img = document.createElement('img');
+    img.src = 'Assets/Wheat.png';
+    img.className = 'wheat-particle';
+    img.style.left = '-9999px'; // off-screen until first frame positions it
+    document.body.appendChild(img);
+    _wheatParticles.push({
+      el: img,
+      fieldCol,
+      fieldRow,
+      startTime: Date.now(),
+      dur: 1900,
+      jitter: Math.random() * 20 - 10, // horizontal scatter within tile
+    });
+  }
+
   // Updates the entity panel's capacity line for (col, row) in-place
   function _refreshEntityCapacity(col, row, mode = 'family') {
     const obj = world.getObject(col, row);
@@ -1072,62 +1594,183 @@ async function main() {
     const existingRf = getRuflux();
     if (existingRf > 0) addRuflux(-existingRf);
 
+    // Upgrade Villagers Hut to Level 2 (capacity = 2) so tutorial can recruit 2 farmers
     const cx = Math.floor(MAP_W / 2), cy = Math.floor(MAP_H / 2) - 1;
-    const ARCHER_PRICE   = (UNIT_RECRUIT_PRICES.Archer   ?? [])[0] ?? 100;
-    const VILLAGER_PRICE = (UNIT_RECRUIT_PRICES.Villager ?? [])[0] ?? 80;
+    world.placeObject(cx + 2, cy, { tx: 0, ty: 56 }); // Level 2 Villagers Hut
 
-    // trigger:null → manual Next button; trigger:string → auto-advance
-    // spotlight: { type:'tile', col, row, rows } or { type:'dom', id, pad }
-    // blockRecruit: true → show blocker + raise entity panel (only ep-recruit clickable)
-    // rfGrant: N → animate RF counter up to N when this step is shown
+    const ARCHER_PRICE      = (UNIT_RECRUIT_PRICES.Archer   ?? [])[0] ?? 100;
+    const VILLAGER_PRICE    = (UNIT_RECRUIT_PRICES.Villager ?? [])[0] ?? 80;
+    const GOLD_MINE_PRICE   = 1500;
+    const FIELDS_LAND_PRICE = 300;
+
     const STEPS = [
+      // 0 — Townhall intro
       {
-        action: 'Your <b>Townhall</b> sits at the center — <b>click it</b>.<br>As you level up the Townhall you unlock upgrades for all other buildings.',
+        action: 'Your <b>Townhall</b> sits at the center — <b>click it</b>.<br>Leveling it unlocks upgrades for every other building.',
         spotlight: { type: 'tile', col: cx, row: cy, rows: 2 },
         trigger: 'townhall-opened',
       },
+      // 1 — Family House
       {
-        action: 'A <b>Family House</b> sits to the left — <b>click it</b> to open its panel.',
+        action: 'A <b>Family House</b> sits to the left — <b>click it</b>.',
         spotlight: { type: 'tile', col: cx - 2, row: cy, rows: 2 },
         trigger: 'family-house-opened',
       },
+      // 2 — Recruit button
       {
-        action: 'Press the <b>⚔ Recruit Units</b> button to open the recruitment hall.',
+        action: 'Press the <b>⚔ Recruit Units</b> button.',
         spotlight: { type: 'dom', id: 'ep-recruit', pad: 10 },
         highlight: 'ep-recruit',
         trigger: 'recruit-opened-family',
         blockRecruit: true,
       },
+      // 3 — Hire Tectine Archer
       {
-        action: 'Find <b>Tectine Archer</b> and press the gold button to recruit it.',
+        action: 'Find <b>Tectine Archer</b> and press the gold button.',
         spotlight: { type: 'dom', id: 'recruit-panel', pad: 0 },
         trigger: 'archer-recruited',
         rfGrant: ARCHER_PRICE,
         allowUnit: { type: 'Archer', colorIdx: 0 },
       },
+      // 4 — Villagers Hut (first visit)
       {
-        action: 'Now <b>click the Villagers Hut</b> to the right of the Townhall.',
+        action: '<b>Click the Villagers Hut</b> to the right of the Townhall.',
         spotlight: { type: 'tile', col: cx + 2, row: cy, rows: 2 },
         trigger: 'villager-hut-opened',
       },
+      // 5 — Recruit Villager button
       {
-        action: 'Press <b>👷 Recruit Villager</b> to open the villager hall.',
+        action: 'Press <b>👷 Recruit Villager</b>.',
         spotlight: { type: 'dom', id: 'ep-recruit', pad: 10 },
         highlight: 'ep-recruit',
         trigger: 'recruit-opened-villager',
         blockRecruit: true,
       },
+      // 6 — First Tectine Farmer
       {
-        action: 'Find <b>Tectine Farmer</b> and recruit them.',
+        action: 'Recruit your first <b>Tectine Farmer</b>.',
         spotlight: { type: 'dom', id: 'recruit-panel', pad: 0 },
         trigger: 'villager-recruited',
         rfGrant: VILLAGER_PRICE,
         allowUnit: { type: 'Villager', colorIdx: 0 },
       },
+      // 7 — Villagers Hut (second visit)
       {
-        action: '🎉 <b>Your empire is alive!</b><br>You have a warrior and a farmer ready to serve.<br>Explore the Store to grow further!',
+        action: 'Great! <b>Click the Villagers Hut</b> again to recruit one more farmer.',
+        spotlight: { type: 'tile', col: cx + 2, row: cy, rows: 2 },
+        trigger: 'villager-hut-opened',
+      },
+      // 8 — Recruit Villager button (second time)
+      {
+        action: 'Press <b>👷 Recruit Villager</b> once more.',
+        spotlight: { type: 'dom', id: 'ep-recruit', pad: 10 },
+        highlight: 'ep-recruit',
+        trigger: 'recruit-opened-villager',
+        blockRecruit: true,
+      },
+      // 9 — Second Tectine Farmer
+      {
+        action: 'Recruit a second <b>Tectine Farmer</b>.',
+        spotlight: { type: 'dom', id: 'recruit-panel', pad: 0 },
+        trigger: 'villager-recruited',
+        rfGrant: VILLAGER_PRICE,
+        allowUnit: { type: 'Villager', colorIdx: 0 },
+      },
+      // 10 — Open Store (RF granted here so it's ready when the store opens)
+      {
+        action: 'Now let\'s build your economy!<br><b>Click the Store</b> button.',
         spotlight: { type: 'dom', id: 'btn-store', pad: 8 },
         highlight: 'btn-store',
+        trigger: 'store-opened',
+        rfGrant: GOLD_MINE_PRICE,
+      },
+      // 11 — Buy Gold Mine
+      {
+        action: 'Find <b>Gold Mine</b> in the Buildings tab and buy it.',
+        spotlight: { type: 'dom', id: 'store-panel', pad: 0 },
+        trigger: 'gold-mine-purchased',
+        storeFilter: 'Gold Mine',
+      },
+      // 12 — Place Gold Mine (store closed automatically, cursor is in crosshair/place mode)
+      {
+        action: 'The Gold Mine is armed! <b>Click anywhere on the map</b> to place it.',
+        spotlight: { type: 'dom', id: 'canvas', pad: 0 },
+        trigger: 'gold-mine-placed',
+      },
+      // 13 — Open Store for Fields Land (RF granted here)
+      {
+        action: 'Head back to the <b>Store</b> to buy a Fields Land.',
+        spotlight: { type: 'dom', id: 'btn-store', pad: 8 },
+        highlight: 'btn-store',
+        trigger: 'store-opened',
+        rfGrant: FIELDS_LAND_PRICE,
+      },
+      // 14 — Buy Fields Land
+      {
+        action: 'Find <b>Fields Land</b> in the Store and buy it.',
+        spotlight: { type: 'dom', id: 'store-panel', pad: 0 },
+        trigger: 'fields-land-purchased',
+        storeFilter: 'Fields Land',
+      },
+      // 15 — Place Fields Land
+      {
+        action: 'Fields Land is armed! <b>Click anywhere on the map</b> to place it.',
+        spotlight: { type: 'dom', id: 'canvas', pad: 0 },
+        trigger: 'fields-land-placed',
+      },
+      // 16 — Click the Fields Land
+      {
+        action: '<b>Click your Fields Land</b> on the map to manage it.',
+        spotlight: { type: 'dom', id: 'canvas', pad: 0 },
+        trigger: 'fields-land-panel-opened',
+      },
+      // 17 — Assign farmer
+      {
+        action: 'Press <b>🌾 Assign Farmer</b> and select a Tectine Farmer to work your land!',
+        spotlight: { type: 'dom', id: 'ep-assign-farmer', pad: 10 },
+        highlight: 'ep-assign-farmer',
+        trigger: 'villager-assigned-to-field',
+        blockAssign: true,
+      },
+      // 18 — Open store for Windmill
+      {
+        action: 'Open the <b>Store</b> to buy a Windmill — it processes your field output into Food!',
+        spotlight: { type: 'dom', id: 'btn-store', pad: 8 },
+        highlight: 'btn-store',
+        trigger: 'store-opened',
+        rfGrant: 800,
+      },
+      // 19 — Buy Windmill
+      {
+        action: 'Find the <b>Windmill</b> in the Store and buy it.',
+        spotlight: { type: 'dom', id: 'store-panel', pad: 0 },
+        trigger: 'windmill-purchased',
+        storeFilter: 'Windmill',
+      },
+      // 20 — Place Windmill
+      {
+        action: 'Windmill armed! <b>Click anywhere on the map</b> to place it.',
+        spotlight: { type: 'dom', id: 'canvas', pad: 0 },
+        trigger: 'windmill-placed',
+      },
+      // 21 — Click Windmill
+      {
+        action: '<b>Click your Windmill</b> on the map to open its panel.',
+        spotlight: { type: 'dom', id: 'canvas', pad: 0 },
+        trigger: 'windmill-panel-opened',
+      },
+      // 22 — Assign field
+      {
+        action: 'Press <b>🌾 Assign Field</b> and connect your Fields Land to start producing Food!',
+        spotlight: { type: 'dom', id: 'ep-assign-field', pad: 10 },
+        highlight: 'ep-assign-field',
+        trigger: 'field-assigned-to-windmill',
+      },
+      // 23 — Final
+      {
+        action: '🎉 <b>Your empire is thriving!</b><br>Warriors defend, farmers harvest, windmills process Food.<br>Watch your Food bar fill and keep expanding!',
+        spotlight: { type: 'dom', id: 'food-hud', pad: 8 },
+        highlight: 'food-hud',
         next: 'Start Conquering ⚔',
         trigger: null,
       },
@@ -1148,8 +1791,10 @@ async function main() {
         if (remaining <= 0) {
           clearInterval(_rfAnimTimer);
           if (hudEl) hudEl.classList.remove('tut-rf-animating');
-          // Re-render recruit panel so unit buttons reflect the new balance
-          if (_selCol !== -1) _openRecruitFn(_selCol, _selRow, _recruitMode);
+          // Only re-render recruit panel if the current step actually needs it open
+          if (_selCol !== -1 && STEPS[step]?.spotlight?.id === 'recruit-panel') {
+            _openRecruitFn(_selCol, _selRow, _recruitMode);
+          }
           return;
         }
         const chunk = Math.ceil(remaining / Math.max(1, ticks - granted));
@@ -1161,9 +1806,11 @@ async function main() {
     function _clearTutUI() {
       blocker?.classList.remove('active');
       document.getElementById('entity-panel')?.classList.remove('tut-recruit-only');
+      document.getElementById('entity-panel')?.classList.remove('tut-assign-only');
       spotDiv?.classList.remove('active');
       _tutSpotlight = null;
       _tutAllowedUnit = null;
+      setTutStoreFilter(null);
       document.getElementById('recruit-overlay')?.style.removeProperty('pointer-events');
       document.querySelectorAll('.tutorial-pulse').forEach(el => el.classList.remove('tutorial-pulse'));
     }
@@ -1186,38 +1833,46 @@ async function main() {
 
       _clearTutUI();
 
-      // Spotlight
       if (s.spotlight) {
         _tutSpotlight = s.spotlight;
         spotDiv?.classList.add('active');
       }
 
-      // Map pointer ping (tile targets only) — map pointer code adds +0.5 internally
       _tutMapTarget = s.spotlight?.type === 'tile'
         ? { col: s.spotlight.col, row: s.spotlight.row + (s.spotlight.rows ?? 1) / 2 - 0.5 }
         : null;
 
-      // Pulse highlight on a named DOM element
       if (s.highlight) document.getElementById(s.highlight)?.classList.add('tutorial-pulse');
 
-      // Blocker: only for button steps (recruit button)
       if (s.blockRecruit) {
         blocker?.classList.add('active');
         document.getElementById('entity-panel')?.classList.add('tut-recruit-only');
       }
+      if (s.blockAssign) {
+        blocker?.classList.add('active');
+        document.getElementById('entity-panel')?.classList.add('tut-assign-only');
+      }
 
-      // Close entity panel when stepping to a tile-target step
       if (s.spotlight?.type === 'tile') _hideEntityPanel();
 
-      // Lock recruit overlay open during recruit-unit steps so clicking dark area doesn't close the panel
+      // Close recruit panel unless this step actually uses it
+      if (s.spotlight?.id !== 'recruit-panel' && s.spotlight?.id !== 'ep-recruit') {
+        document.getElementById('recruit-panel')?.classList.remove('open');
+        document.getElementById('recruit-overlay')?.classList.remove('open');
+      }
+
       if (s.spotlight?.id === 'recruit-panel') {
         document.getElementById('recruit-overlay')?.style.setProperty('pointer-events', 'none');
       }
 
-      // Restrict recruit panel to a single unit during tutorial
-      _tutAllowedUnit = s.allowUnit ?? null;
+      if (s.closeStoreOnShow) {
+        document.getElementById('store-panel')?.classList.remove('open');
+        document.getElementById('store-overlay')?.classList.remove('open');
+      }
 
-      // RF grant animation
+      _tutAllowedUnit = s.allowUnit ?? null;
+      setTutStoreFilter(s.storeFilter ?? null);
+
       if (s.rfGrant) _animateRfGrant(s.rfGrant);
     }
 
@@ -1377,6 +2032,143 @@ async function main() {
           spotDiv.style.height = `${Math.round(r.height + pad * 2)}px`;
         }
       }
+    }
+
+    // ── Wheat particles ───────────────────────────────────────────────
+    // 1. Scan current Fields Land positions — must check name, not just ty
+    //    (Family House also sits at ty=50 but is a different building)
+    const _wNow = Date.now();
+    const _fieldPositions = [];
+    for (let r = 0; r < world.h; r++) {
+      for (let c = 0; c < world.w; c++) {
+        const o = world.getObject(c, r);
+        if (o && getObjectDisplayName(o.tx, o.ty).replace(' Top', '') === 'Fields Land')
+          _fieldPositions.push({ col: c, row: r });
+      }
+    }
+
+    const _isFieldsLandObj = (o) =>
+      o && getObjectDisplayName(o.tx, o.ty).replace(' Top', '') === 'Fields Land';
+
+    // 2. Spawn new particles from assigned workers
+    const _wUnits = world.units;
+    for (let r = 0; r < world.h; r++) {
+      for (let c = 0; c < world.w; c++) {
+        const u = _wUnits[r][c];
+        if (!u || u.fieldCol === undefined) continue;
+        // Heal stale field reference if building was moved or replaced
+        const storedObj = world.getObject(u.fieldCol, u.fieldRow);
+        if (!_isFieldsLandObj(storedObj)) {
+          if (_fieldPositions.length === 0) continue;
+          let best = _fieldPositions[0], bestD = Infinity;
+          for (const fp of _fieldPositions) {
+            const d = Math.abs(fp.col - c) + Math.abs(fp.row - r);
+            if (d < bestD) { bestD = d; best = fp; }
+          }
+          u.fieldCol = best.col;
+          u.fieldRow = best.row;
+        }
+        if (!u._wheatNext || _wNow >= u._wheatNext) {
+          _spawnWheatParticle(u.fieldCol, u.fieldRow);
+          u._wheatNext = _wNow + 1800 + Math.random() * 1400;
+        }
+      }
+    }
+
+    // 3. Update existing particles every frame (tracks camera movement)
+    for (let i = _wheatParticles.length - 1; i >= 0; i--) {
+      const p = _wheatParticles[i];
+      const elapsed = _wNow - p.startTime;
+      if (elapsed >= p.dur) {
+        p.el.remove();
+        _wheatParticles.splice(i, 1);
+        continue;
+      }
+      const t = elapsed / p.dur; // 0..1
+      // Ease-out float: fast rise then slow
+      const rise   = t * t < 0.5 ? 2 * t * t : 1 - Math.pow(-2 * t + 2, 2) / 2;
+      const opacity = t < 0.12 ? t / 0.12 : t > 0.75 ? 1 - (t - 0.75) / 0.25 : 1;
+      const scale  = 0.65 + rise * 0.45;
+      const rotate = (t - 0.5) * 20; // gentle wobble
+      // Recompute screen position from live camera + stored field tile
+      const baseX = Math.round(camera.ox + (p.fieldCol + 0.5) * TILE_DST) - 12;
+      const baseY = Math.round(camera.oy + (p.fieldRow + 0.3) * TILE_DST) - 12;
+      const floatY = rise * -62;
+      p.el.style.left      = `${baseX + p.jitter}px`;
+      p.el.style.top       = `${baseY}px`;
+      p.el.style.opacity   = opacity.toFixed(3);
+      p.el.style.transform = `translateY(${floatY.toFixed(1)}px) scale(${scale.toFixed(3)}) rotate(${rotate.toFixed(1)}deg)`;
+    }
+
+    // ── Windmill production tick ──────────────────────────────────────
+    const _wFrameDt = 1 / 60; // assume 60fps; could use rAF delta for precision
+    for (let r = 0; r < world.h; r++) {
+      for (let c = 0; c < world.w; c++) {
+        const o = world.getObject(c, r);
+        if (!o || !_isWindmillObj(o)) continue;
+        if (!o.assignedFields?.length) continue;
+        // Initialise progress if not set
+        if (o.windmillProgress === undefined) o.windmillProgress = 0;
+        const rate = _windmillFillRatePerSec(o);
+        o.windmillProgress += rate * _wFrameDt;
+        if (o.windmillProgress >= 100) {
+          o.windmillProgress = 0;
+          const output = _windmillOutput(o);
+          _addFood(output);
+          _spawnFoodParticle(c, r);
+        }
+        // Ensure canvas bar exists
+        _ensureWindmillBar(c, r);
+      }
+    }
+    // Remove bars for windmills that no longer have assigned fields
+    for (let i = _windmillBars.length - 1; i >= 0; i--) {
+      const b = _windmillBars[i];
+      const o = world.getObject(b.col, b.row);
+      if (!o || !_isWindmillObj(o) || !o.assignedFields?.length) {
+        b.wrapEl.remove();
+        _windmillBars.splice(i, 1);
+      }
+    }
+    // Update windmill bar overlays
+    for (const b of _windmillBars) {
+      const o = world.getObject(b.col, b.row);
+      const pct = o?.windmillProgress ?? 0;
+      const px = Math.round(camera.ox + b.col * TILE_DST);
+      const py = Math.round(camera.oy + b.row * TILE_DST - 8);
+      b.wrapEl.style.left   = `${px}px`;
+      b.wrapEl.style.top    = `${py}px`;
+      b.wrapEl.style.width  = `${TILE_DST}px`;
+      b.fillEl.style.width  = `${pct.toFixed(1)}%`;
+    }
+    // Update entity panel windmill bar if a windmill is selected
+    if (_selCol !== -1 && _selRow !== -1) {
+      const selO = world.getObject(_selCol, _selRow);
+      if (selO && _isWindmillObj(selO)) {
+        const pct = selO.windmillProgress ?? 0;
+        const fillEl = document.getElementById('ep-windmill-bar-fill');
+        const pctEl  = document.getElementById('ep-windmill-pct');
+        if (fillEl) fillEl.style.width = `${pct.toFixed(1)}%`;
+        if (pctEl)  pctEl.textContent  = `${Math.floor(pct)}%`;
+      }
+    }
+
+    // ── Food particles ────────────────────────────────────────────────
+    const _fpNow = Date.now();
+    for (let i = _foodParticles.length - 1; i >= 0; i--) {
+      const p = _foodParticles[i];
+      const elapsed = _fpNow - p.startTime;
+      if (elapsed >= p.dur) { p.el.remove(); _foodParticles.splice(i, 1); continue; }
+      const t = elapsed / p.dur;
+      const rise    = t < 0.5 ? 2*t*t : 1 - Math.pow(-2*t+2,2)/2;
+      const opacity = t < 0.1 ? t/0.1 : t > 0.7 ? 1-(t-0.7)/0.3 : 1;
+      const scale   = 0.7 + rise * 0.5;
+      const baseX   = Math.round(camera.ox + (p.col + 0.5) * TILE_DST) - 14;
+      const baseY   = Math.round(camera.oy + (p.row + 0.3) * TILE_DST) - 14;
+      p.el.style.left      = `${baseX + p.jitter}px`;
+      p.el.style.top       = `${baseY}px`;
+      p.el.style.opacity   = opacity.toFixed(3);
+      p.el.style.transform = `translateY(${(rise * -80).toFixed(1)}px) scale(${scale.toFixed(3)})`;
     }
   }
 

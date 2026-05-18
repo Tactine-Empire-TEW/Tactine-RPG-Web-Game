@@ -69,7 +69,10 @@ export class World {
   // ── Mutations ─────────────────────────────────────────────────────────
   placeObject(col, row, tile) {
     if (!this.inBounds(col, row)) return;
-    this._objects[row][col] = { tx: tile.tx, ty: tile.ty };
+    // Spread all properties so custom state (assignedFields, windmillProgress, etc.) survives drag-drop.
+    // Strip 'bot' — that's a drag-meta key, not a tile property.
+    const { bot: _ignored, ...rest } = tile;
+    this._objects[row][col] = rest;
     this._save();
   }
 

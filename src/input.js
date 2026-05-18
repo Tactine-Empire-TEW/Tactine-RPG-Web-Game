@@ -13,12 +13,12 @@
  * Unit movement: handled by World.tickUnits(), called from main loop (not here).
  */
 
-import { WATER_UNITS, FLYING_UNITS, BLDG_TOP_BOT_PAIRS, BLDG_BOT_KEYS, isWaterTileCoord } from './constants.js';
+import { WATER_UNITS, FLYING_UNITS, BLDG_TOP_BOT_PAIRS, BLDG_BOT_KEYS, isWaterTileCoord, isWallLvl1Tile } from './constants.js';
 
 const DRAG_THRESHOLD  = 8;   // pixels
 const DBLCLICK_MS     = 350; // max ms between clicks to count as double-click
 
-export function setupInput({ canvas, camera, world, editPanel, getEditMode, onPick, onClear, beforePlace, afterPlace, onRemoved }) {
+export function setupInput({ canvas, camera, world, editPanel, getEditMode, onPick, onClear, beforePlace, afterPlace, onRemoved, onObjectMoved }) {
   // Townhall tiles are permanent — never removable
   const _isTownhall = (tx, ty) => tx === 16 && (ty === 61 || ty === 62);
   const state = {
@@ -36,6 +36,15 @@ export function setupInput({ canvas, camera, world, editPanel, getEditMode, onPi
   // Panning
   let panning   = false;
   let panStartX = 0, panStartY = 0;
+
+  // Wall paint mode — track last painted cell to avoid duplicates
+  let wallPainting  = false;
+  let lastPaintCol  = -1;
+  let lastPaintRow  = -1;
+  // Water paint mode (same continuous-drag behaviour as walls)
+  let waterPainting  = false;
+  let lastWaterCol   = -1;
+  let lastWaterRow   = -1;
   let camStartX = 0, camStartY = 0;
 
   // Drag-drop origin
@@ -151,17 +160,18 @@ export function setupInput({ canvas, camera, world, editPanel, getEditMode, onPi
         if (topO) {
           world.removeObjectAt(col, row - 1);
           world.removeObjectAt(col, row);
-          state.dragObject = { tx: topO.tx, ty: topO.ty, bot: { tx: o.tx, ty: o.ty } };
+          // Spread all top-tile properties so custom state (assignedFields etc.) is preserved
+          state.dragObject = { ...topO, bot: { tx: o.tx, ty: o.ty } };
           _fromCol = col; _fromRow = row - 1;
           canvas.style.cursor = 'grabbing';
           return true;
         }
       }
-      // Top tile or single tile
+      // Top tile or single tile — spread all properties to keep custom state
       const pairBot = BLDG_TOP_BOT_PAIRS.get(key);
       world.removeObjectAt(col, row);
       if (pairBot) world.removeObjectAt(col, row + 1);
-      state.dragObject = pairBot ? { tx: o.tx, ty: o.ty, bot: pairBot } : { tx: o.tx, ty: o.ty };
+      state.dragObject = pairBot ? { ...o, bot: pairBot } : { ...o };
       _fromCol = col; _fromRow = row;
       canvas.style.cursor = 'grabbing';
       return true;
@@ -199,18 +209,15 @@ export function setupInput({ canvas, camera, world, editPanel, getEditMode, onPi
       if (inMap && !occupied) {
         world.placeObject(col, row, dobj);
         if (dobj.bot) world.placeObject(col, row + 1, dobj.bot);
+        if (onObjectMoved) onObjectMoved(_fromCol, _fromRow, col, row);
       } else if (inMap) {
         // Target occupied — restore to original position
         world.placeObject(_fromCol, _fromRow, dobj);
         if (dobj.bot) world.placeObject(_fromCol, _fromRow + 1, dobj.bot);
       } else {
-        // Off-map: Townhall snaps back; everything else returns to inventory
-        if (_isTownhall(dobj.tx, dobj.ty)) {
-          world.placeObject(_fromCol, _fromRow, dobj);
-          if (dobj.bot) world.placeObject(_fromCol, _fromRow + 1, dobj.bot);
-        } else {
-          if (onRemoved) onRemoved({ type: 'object', tx: dobj.tx, ty: dobj.ty, bot: dobj.bot || null });
-        }
+        // Off-map: always restore to original position (objects are permanent)
+        world.placeObject(_fromCol, _fromRow, dobj);
+        if (dobj.bot) world.placeObject(_fromCol, _fromRow + 1, dobj.bot);
       }
       state.dragObject = null;
     }
@@ -244,12 +251,9 @@ export function setupInput({ canvas, camera, world, editPanel, getEditMode, onPi
   canvas.addEventListener('mousedown', e => {
     e.preventDefault();
 
-    // Right-click: remove in edit mode
+    // Right-click: cancel current wall-paint or placement selection
     if (e.button === 2) {
-      if (getEditMode()) {
-        const { col, row } = _cell(e.clientX, e.clientY);
-        _removeWithPair(col, row);
-      }
+      if (getEditMode()) editPanel.selected = null;
       return;
     }
 
@@ -263,13 +267,24 @@ export function setupInput({ canvas, camera, world, editPanel, getEditMode, onPi
     }
 
     // Both play and edit mode: record mousedown and wait for threshold.
-    // Drag on a unit → drag-drop; drag on empty → pan; clean click → place (edit only).
     const { col, row } = _cell(e.clientX, e.clientY);
     mdX = e.clientX; mdY = e.clientY;
     mdCol = col; mdRow = row;
     camStartX = camera.x; camStartY = camera.y;
     mdActive  = true;
     hasDragged = false;
+
+    // Start paint mode if a wall or water tile is selected
+    const sel = editPanel.selected;
+    if (getEditMode() && sel?.kind === 'object') {
+      if (isWallLvl1Tile(sel.tx, sel.ty)) {
+        wallPainting = true;
+        lastPaintCol = -1; lastPaintRow = -1;
+      } else if (isWaterTileCoord(sel.ty)) {
+        waterPainting = true;
+        lastWaterCol = -1; lastWaterRow = -1;
+      }
+    }
 
     // Show entity panel immediately on click.
     // Use findUnitNear so mid-animation units (visual pos ≠ logical pos) are found.
@@ -293,6 +308,28 @@ export function setupInput({ canvas, camera, world, editPanel, getEditMode, onPi
 
     if (state.dragUnit || state.dragObject) {
       canvas.style.cursor = 'grabbing';
+      return;
+    }
+
+    // Wall paint: place a wall on each new cell the mouse enters while held
+    if (wallPainting && mdActive) {
+      const { col, row } = _cell(e.clientX, e.clientY);
+      if (col !== lastPaintCol || row !== lastPaintRow) {
+        lastPaintCol = col; lastPaintRow = row;
+        hasDragged = true;
+        _placeSelected(e.clientX, e.clientY);
+      }
+      return;
+    }
+
+    // Water paint: same continuous-drag behaviour
+    if (waterPainting && mdActive) {
+      const { col, row } = _cell(e.clientX, e.clientY);
+      if (col !== lastWaterCol || row !== lastWaterRow) {
+        lastWaterCol = col; lastWaterRow = row;
+        hasDragged = true;
+        _placeSelected(e.clientX, e.clientY);
+      }
       return;
     }
 
@@ -329,23 +366,36 @@ export function setupInput({ canvas, camera, world, editPanel, getEditMode, onPi
 
     if (state.dragUnit || state.dragObject) {
       _dropDrag(e.clientX, e.clientY);
-    } else if (mdActive && !hasDragged && getEditMode()) {
+    } else if (mdActive && !hasDragged) {
       const { col, row } = _cell(mdX, mdY);
       const now = Date.now();
+      const isDbl = (now - lastClickTime < DBLCLICK_MS)
+                  && col === lastClickCol && row === lastClickRow;
 
-      if (now - lastClickTime < DBLCLICK_MS && col === lastClickCol && row === lastClickRow) {
-        // Double-click → remove top item at that cell (plus paired partner if 2-tile building)
-        _removeWithPair(col, row);
-        lastClickTime = 0; // reset so triple-click doesn't also remove
-      } else {
-        // Single click → place selected tile
-        _placeSelected(mdX, mdY);
-        lastClickTime = now;
-        lastClickCol  = col;
-        lastClickRow  = row;
+      const biomeOpen = document.getElementById('inv-panel')?.classList.contains('open');
+      if (isDbl && biomeOpen) {
+        // Double-click while Biome panel is open: erase water tile only
+        const o = world.getObject(col, row);
+        if (o && isWaterTileCoord(o.ty)) {
+          world.removeObjectAt(col, row);
+          if (onRemoved) onRemoved({ type: 'object', tx: o.tx, ty: o.ty });
+          lastClickTime = 0; // reset so triple-click doesn't re-trigger
+          wallPainting = false; waterPainting = false;
+          mdActive = false; hasDragged = false; panning = false;
+          canvas.style.cursor = getEditMode() ? 'crosshair' : 'grab';
+          return;
+        }
       }
+
+      if (getEditMode()) _placeSelected(mdX, mdY);
+
+      lastClickTime = now;
+      lastClickCol  = col;
+      lastClickRow  = row;
     }
 
+    wallPainting  = false;
+    waterPainting = false;
     mdActive   = false;
     hasDragged = false;
     panning    = false;
