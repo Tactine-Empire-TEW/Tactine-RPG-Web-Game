@@ -32,7 +32,7 @@ app.include_router(world.router, prefix="/api/world", tags=["World"])
 
 # ── Determine path to the frontend files ─────────────────────────────
 # backend/ lives inside the project; go one level up.
-FRONTEND = os.path.abspath(os.path.join(os.path.dirname(__file__), "..", ".."))
+FRONTEND = os.environ.get("FRONTEND", os.path.abspath(os.path.join(os.path.dirname(__file__), "..", "..")))
 
 
 def _is_authed(request: Request) -> bool:

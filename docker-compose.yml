@@ -27,6 +27,9 @@ services:
     environment:
       DATABASE_URL: postgresql+psycopg://tactine:${DB_PASSWORD:-tactine_pass}@postgres:5432/tactine_rpg
       SECRET_KEY:   ${SECRET_KEY:-change-this-in-production}
+      FRONTEND:     /frontend
+    volumes:
+      - ./:/frontend:ro
     depends_on:
       postgres:
         condition: service_healthy
